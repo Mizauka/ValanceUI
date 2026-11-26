@@ -193,6 +193,11 @@ defineExpose({
   will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transition: transform 0.36s var(--ease-standard);
+}
+
+.vl-push-drawer.dragging {
+  transition: none;
 }
 
 .vl-push-drawer:not(.contained) > :not(.vl-activity-bar) {
@@ -211,6 +216,11 @@ defineExpose({
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   overflow: hidden;
+  transition: transform 0.36s var(--ease-standard);
+}
+
+.vl-push-stage.dragging {
+  transition: none;
 }
 
 .vl-drawer-scrim {
@@ -222,6 +232,11 @@ defineExpose({
   z-index: 50;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transition: opacity 0.32s var(--ease-standard);
+}
+
+.vl-drawer-scrim.dragging {
+  transition: none;
 }
 
 .vl-drawer-scrim.active {

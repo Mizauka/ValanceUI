@@ -83,7 +83,7 @@ const indicatorStyle = computed(() => {
         : barW.value
   return {
     width: `${w}px`,
-    left: `${x}px`,
+    transform: `translate3d(${x}px, 0, 0)`,
   }
 })
 
@@ -210,35 +210,43 @@ onBeforeUnmount(() => {
   bottom: 0;
   height: 3px;
   border-radius: 0px;
+  background-color: transparent;
   pointer-events: none;
   z-index: 2;
+  will-change: transform;
+}
+
+.vl-tabs-indicator::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   transform-origin: center bottom;
   transform: scale(1, 1);
+  will-change: transform;
   transition: transform 0.24s var(--ease-standard);
 }
 
-.vl-tabs-indicator.t-primary {
+.vl-tabs-indicator.t-primary::before {
   background-color: var(--accent-primary);
 }
 
-.vl-tabs-indicator.t-secondary {
+.vl-tabs-indicator.t-secondary::before {
   background-color: var(--accent-secondary);
 }
 
-.vl-tabs-indicator.pressed,
-.vl-tabs-indicator.dragging {
+.vl-tabs-indicator.pressed::before,
+.vl-tabs-indicator.dragging::before {
   transform: scale(1.08, 1.5);
 }
 
 .vl-tabs-indicator.animated {
   transition:
-    left 0.32s var(--ease-emphasized-decel),
-    width 0.28s var(--ease-emphasized-decel),
-    transform 0.24s var(--ease-standard);
+    transform 0.32s var(--ease-standard),
+    width 0.28s var(--ease-standard);
 }
 
 .vl-tabs-indicator.dragging {
-  transition: transform 0.22s var(--ease-standard);
+  transition: none;
 }
 
 .vl-header-tab {

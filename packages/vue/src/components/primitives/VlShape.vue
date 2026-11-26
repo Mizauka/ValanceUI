@@ -2,12 +2,20 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { getM3ShapePath, type M3ShapeName } from '../../styles/m3Shapes'
 import {
-  expressiveMorphEase,
   getSampledM3Loop,
   interpolateLoops,
   loopToSvgPath,
-  type MorphPoint,
 } from '../../styles/m3ShapeMorph'
+
+// Cached 72-segment normalized SVG paths (identical command topology -> native browser 120Hz CSS `transition: d`!)
+const normalizedPathCache = new Map<M3ShapeName, string>()
+function getNormalizedPath(name: M3ShapeName): string {
+  const cached = normalizedPathCache.get(name)
+  if (cached) return cached
+  const p = loopToSvgPath(getSampledM3Loop(name))
+  normalizedPathCache.set(name, p)
+  return p
+}
 
 const props = withDefaults(
   defineProps<{
@@ -40,16 +48,20 @@ const props = withDefaults(
   },
 )
 
+const rootRef = ref<HTMLElement | null>(null)
 const hovering = ref(false)
 const cycleIndex = ref(0)
-const renderedPath = ref(getM3ShapePath(props.shape))
+const isInViewport = ref(true)
+const isPageVisible = ref(typeof document !== 'undefined' ? !document.hidden : true)
 
-let currentLoop: MorphPoint[] = getSampledM3Loop(props.shape)
-let rafId: number | null = null
 let cycleTimer: ReturnType<typeof setInterval> | null = null
+let io: IntersectionObserver | null = null
 
 const isAutoMorphing = computed(() => Boolean(props.autoMorph && props.autoMorph.length >= 2))
 const isManualMorph = computed(() => Boolean(props.morphTo) && !isAutoMorphing.value)
+const hasMorphTargets = computed(() =>
+  Boolean(props.hoverShape || props.activeShape || isAutoMorphing.value),
+)
 
 const targetShape = computed<M3ShapeName>(() => {
   if (isAutoMorphing.value) {
@@ -61,66 +73,32 @@ const targetShape = computed<M3ShapeName>(() => {
   return props.shape
 })
 
-function cancelMorph() {
-  if (rafId !== null && typeof cancelAnimationFrame !== 'undefined') {
-    cancelAnimationFrame(rafId)
-    rafId = null
+// Pure computed SVG path — ZERO requestAnimationFrame loop!
+// When morphing between discrete shapes, uses normalized 72-command topology so native CSS `transition: d` runs at 120Hz!
+const renderedPath = computed(() => {
+  if (isManualMorph.value && props.morphTo) {
+    if (props.morphProgress <= 0.005) return getM3ShapePath(props.shape)
+    if (props.morphProgress >= 0.995) return getM3ShapePath(props.morphTo)
+    return loopToSvgPath(
+      interpolateLoops(
+        getSampledM3Loop(props.shape),
+        getSampledM3Loop(props.morphTo),
+        props.morphProgress,
+      ),
+    )
   }
-}
-
-function animateToShape(nextShape: M3ShapeName) {
-  cancelMorph()
-  const toLoop = getSampledM3Loop(nextShape)
-  if (typeof requestAnimationFrame === 'undefined' || props.morphDuration <= 0) {
-    currentLoop = toLoop
-    renderedPath.value = getM3ShapePath(nextShape)
-    return
+  if (hasMorphTargets.value) {
+    return getNormalizedPath(targetShape.value)
   }
+  return getM3ShapePath(props.shape)
+})
 
-  const fromLoop = currentLoop.slice()
-  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
-  const dur = Math.max(60, props.morphDuration)
-
-  const step = (now: number) => {
-    const rawT = Math.min(1, (now - startTime) / dur)
-    const eased = expressiveMorphEase(rawT)
-    const interp = interpolateLoops(fromLoop, toLoop, eased)
-    currentLoop = interp
-    if (rawT >= 1) {
-      currentLoop = toLoop
-      renderedPath.value = getM3ShapePath(nextShape)
-      rafId = null
-    } else {
-      renderedPath.value = loopToSvgPath(interp)
-      rafId = requestAnimationFrame(step)
-    }
-  }
-  rafId = requestAnimationFrame(step)
-}
-
-watch(
-  () => [props.shape, props.morphTo, props.morphProgress, isManualMorph.value] as const,
-  () => {
-    if (!isManualMorph.value || !props.morphTo) return
-    cancelMorph()
-    const a = getSampledM3Loop(props.shape)
-    const b = getSampledM3Loop(props.morphTo)
-    const interp = interpolateLoops(a, b, props.morphProgress)
-    currentLoop = interp
-    renderedPath.value =
-      props.morphProgress <= 0.005
-        ? getM3ShapePath(props.shape)
-        : props.morphProgress >= 0.995
-          ? getM3ShapePath(props.morphTo)
-          : loopToSvgPath(interp)
-  },
-  { immediate: true },
-)
-
-watch(targetShape, (next, prev) => {
-  if (isManualMorph.value) return
-  if (next === prev && renderedPath.value) return
-  animateToShape(next)
+const pathStyle = computed(() => {
+  if (!hasMorphTargets.value || isManualMorph.value) return undefined
+  return {
+    d: `path("${renderedPath.value}")`,
+    '--vl-morph-ms': `${Math.max(80, props.morphDuration)}ms`,
+  } as Record<string, string>
 })
 
 function setupCycle() {
@@ -128,20 +106,41 @@ function setupCycle() {
     clearInterval(cycleTimer)
     cycleTimer = null
   }
-  if (!isAutoMorphing.value) return
+  if (!isAutoMorphing.value || !isInViewport.value || !isPageVisible.value) return
   cycleTimer = setInterval(() => {
     cycleIndex.value = (cycleIndex.value + 1) % (props.autoMorph?.length || 1)
   }, Math.max(260, props.cycleInterval))
 }
 
-watch(() => [props.autoMorph, props.cycleInterval] as const, setupCycle)
+function onVisibilityChange() {
+  isPageVisible.value = !document.hidden
+  setupCycle()
+}
+
+watch(() => [props.autoMorph, props.cycleInterval, isInViewport.value] as const, setupCycle)
 
 onMounted(() => {
+  if (typeof IntersectionObserver !== 'undefined' && rootRef.value && isAutoMorphing.value) {
+    io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry) isInViewport.value = entry.isIntersecting
+      },
+      { threshold: 0.01 },
+    )
+    io.observe(rootRef.value)
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
   setupCycle()
 })
 
 onBeforeUnmount(() => {
-  cancelMorph()
+  io?.disconnect()
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+  }
   if (cycleTimer !== null) clearInterval(cycleTimer)
 })
 
@@ -157,6 +156,7 @@ const svgSpinStyle = computed(() =>
 <template>
   <component
     :is="interactive ? 'button' : 'span'"
+    ref="rootRef"
     :type="interactive ? 'button' : undefined"
     class="vl-m3-shape"
     :class="[
@@ -165,7 +165,7 @@ const svgSpinStyle = computed(() =>
       {
         'is-interactive': interactive,
         'is-active': active,
-        'has-swap': Boolean(hoverShape || activeShape || isAutoMorphing),
+        'has-swap': hasMorphTargets,
       },
     ]"
     :style="{ width: sizeCss, height: sizeCss }"
@@ -178,7 +178,7 @@ const svgSpinStyle = computed(() =>
       :style="svgSpinStyle"
       aria-hidden="true"
     >
-      <path :d="renderedPath" class="vl-m3-shape-path" />
+      <path :d="renderedPath" :style="pathStyle" class="vl-m3-shape-path" />
     </svg>
     <span v-if="$slots.default" class="vl-m3-shape-inner">
       <slot />
@@ -194,21 +194,10 @@ const svgSpinStyle = computed(() =>
   justify-content: center;
   flex-shrink: 0;
   vertical-align: middle;
-  transition: transform 0.28s var(--ease-expressive);
 }
 
 .vl-m3-shape.is-interactive {
   cursor: pointer;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .vl-m3-shape.is-interactive:hover {
-    transform: scale(1.06) rotate(4deg);
-  }
-}
-
-.vl-m3-shape.is-interactive:active {
-  transform: scale(0.94);
 }
 
 .vl-m3-shape-svg {
@@ -218,12 +207,13 @@ const svgSpinStyle = computed(() =>
   height: 100%;
   display: block;
   overflow: visible;
-  transition: transform 0.14s linear;
+  transition: transform 0.24s var(--ease-standard);
 }
 
 .vl-m3-shape-path {
   vector-effect: non-scaling-stroke;
   transition:
+    d var(--vl-morph-ms, 380ms) var(--ease-standard),
     fill 0.2s var(--ease-standard),
     stroke 0.2s var(--ease-standard);
 }

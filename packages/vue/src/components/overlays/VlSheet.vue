@@ -132,7 +132,7 @@ function onEnter(el: Element, done: () => void) {
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = 'transform 0.4s var(--ease-emphasized-decel)'
+  htmlEl.style.transition = 'transform 0.36s var(--ease-standard)'
   htmlEl.style.transform = 'translate3d(0, 0, 0)'
 }
 
@@ -184,7 +184,7 @@ function onLeave(el: Element, done: () => void) {
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = `transform ${durMs}ms var(--ease-emphasized-decel)`
+  htmlEl.style.transition = `transform ${durMs}ms var(--ease-standard)`
   htmlEl.style.transform = offscreenTransform()
 }
 
@@ -390,7 +390,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background-color: var(--bg-base);
   overflow: hidden;
-  transition: transform 0.38s var(--ease-emphasized-decel);
+  transition: transform 0.36s var(--ease-standard);
 }
 
 .vl-sheet.contained {

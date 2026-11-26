@@ -117,17 +117,17 @@ const resolvedW = computed(() => {
 
 const capsuleIndicatorStyle = computed(() => ({
   width: `${resolvedW.value}px`,
-  left: `${resolvedX.value}px`,
+  transform: `translate3d(${resolvedX.value}px, 0, 0)`,
 }))
 
 const barGlideStyle = computed(() => ({
   width: `${resolvedW.value}px`,
-  left: `${resolvedX.value}px`,
+  transform: `translate3d(${resolvedX.value}px, 0, 0)`,
 }))
 
 const barLineStyle = computed(() => ({
   width: `${resolvedW.value}px`,
-  left: `${resolvedX.value}px`,
+  transform: `translate3d(${resolvedX.value}px, 0, 0)`,
 }))
 
 const hostStyle = computed(() => {
@@ -381,39 +381,45 @@ onBeforeUnmount(() => {
   bottom: 5px;
   left: 0;
   border-radius: calc((var(--dock-h) - 10px) / 2);
-  background-color: var(--accent-primary);
+  background-color: transparent;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+}
+
+.vl-dock-indicator::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--accent-primary);
   transform-origin: center;
   transform: scale(1, 1);
+  will-change: transform;
   transition:
     transform 0.28s var(--ease-standard),
     background-color 0.2s var(--ease-standard);
 }
 
-.vl-dock-indicator.pressed,
-.vl-dock-indicator.dragging {
+.vl-dock-indicator.pressed::before,
+.vl-dock-indicator.dragging::before {
   background-color: var(--accent-primary-hover);
   transform: scale(1.16, 1.32);
 }
 
-.vl-dock-capsule-host.embedded .vl-dock-indicator.pressed,
-.vl-dock-capsule-host.embedded .vl-dock-indicator.dragging {
+.vl-dock-capsule-host.embedded .vl-dock-indicator.pressed::before,
+.vl-dock-capsule-host.embedded .vl-dock-indicator.dragging::before {
   transform: scale(1.1, 1.22);
 }
 
 .vl-dock-indicator.animated {
   transition:
-    left 0.34s var(--ease-emphasized-decel),
-    width 0.3s var(--ease-emphasized-decel),
-    transform 0.28s var(--ease-standard),
-    background-color 0.2s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    width 0.3s var(--ease-standard);
 }
 
 .vl-dock-indicator.dragging {
-  transition:
-    transform 0.24s var(--ease-standard),
-    background-color 0.18s var(--ease-standard);
+  transition: none;
 }
 
 .vl-dock-tab {
@@ -503,34 +509,39 @@ onBeforeUnmount(() => {
   top: 0;
   bottom: 0;
   left: 0;
-  background-color: var(--bg-base);
+  background-color: transparent;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+}
+
+.vl-bar-glide-block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-base);
   transform-origin: center;
   transform: scale(1, 1);
+  will-change: transform;
   transition:
     transform 0.28s var(--ease-standard),
     background-color 0.2s var(--ease-standard);
 }
 
-.vl-bar-glide-block.pressed,
-.vl-bar-glide-block.dragging {
+.vl-bar-glide-block.pressed::before,
+.vl-bar-glide-block.dragging::before {
   background-color: var(--accent-primary-soft);
   transform: scale(1.12, 1.18);
 }
 
 .vl-bar-glide-block.animated {
   transition:
-    left 0.34s var(--ease-emphasized-decel),
-    width 0.3s var(--ease-emphasized-decel),
-    transform 0.28s var(--ease-standard),
-    background-color 0.2s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    width 0.3s var(--ease-standard);
 }
 
 .vl-bar-glide-block.dragging {
-  transition:
-    transform 0.24s var(--ease-standard),
-    background-color 0.18s var(--ease-standard);
+  transition: none;
 }
 
 .vl-bar-glide-line {
@@ -538,28 +549,36 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   height: 3px;
-  background-color: var(--accent-primary);
+  background-color: transparent;
   pointer-events: none;
   z-index: 3;
+  will-change: transform;
+}
+
+.vl-bar-glide-line::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent-primary);
   transform-origin: center top;
   transform: scale(1, 1);
+  will-change: transform;
   transition: transform 0.26s var(--ease-standard);
 }
 
-.vl-bar-glide-line.pressed,
-.vl-bar-glide-line.dragging {
+.vl-bar-glide-line.pressed::before,
+.vl-bar-glide-line.dragging::before {
   transform: scale(1.12, 1.45);
 }
 
 .vl-bar-glide-line.animated {
   transition:
-    left 0.34s var(--ease-emphasized-decel),
-    width 0.3s var(--ease-emphasized-decel),
-    transform 0.26s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    width 0.3s var(--ease-standard);
 }
 
 .vl-bar-glide-line.dragging {
-  transition: transform 0.24s var(--ease-standard);
+  transition: none;
 }
 
 .vl-bar-item {

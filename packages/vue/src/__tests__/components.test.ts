@@ -555,7 +555,7 @@ describe('@valance-ui/vue core components', () => {
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: -260, clientY: 20, pointerId: 1 }))
     await dock.vm.$nextTick()
     const indStyleLeft = dock.find('.vl-dock-indicator').attributes('style') ?? ''
-    const leftMatch = /left:\s*(-?\d+(?:\.\d+)?)px/.exec(indStyleLeft)
+    const leftMatch = /translate3d\((-?\d+(?:\.\d+)?)px/.exec(indStyleLeft)
     expect(leftMatch).not.toBeNull()
     const overshootX = Number(leftMatch![1])
     expect(overshootX).toBeLessThan(0)
@@ -631,7 +631,7 @@ describe('@valance-ui/vue core components', () => {
     await navRail.findAll('button')[0]!.trigger('pointerdown', { clientX: 30, clientY: 30, pointerId: 2, button: 0 })
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 30, clientY: -240, pointerId: 2 }))
     await navRail.vm.$nextTick()
-    const railIndTop = /top:\s*(-?\d+(?:\.\d+)?)px/.exec(navRail.find('.vl-rail-indicator').attributes('style') ?? '')
+    const railIndTop = /translate3d\(0(?:px)?,\s*(-?\d+(?:\.\d+)?)px/.exec(navRail.find('.vl-rail-indicator').attributes('style') ?? '')
     expect(railIndTop).not.toBeNull()
     expect(Number(railIndTop![1])).toBeLessThan(0)
     expect(Number(railIndTop![1])).toBeGreaterThanOrEqual(-12)
@@ -735,7 +735,7 @@ describe('@valance-ui/vue core components', () => {
     mockRectList(instantDock.findAll('button').map((b) => b.element), 'x', 80)
     await instantDock.findAll('button')[2]!.trigger('pointerdown', { clientX: 200, clientY: 20, pointerId: 21, button: 0 })
     await instantDock.vm.$nextTick()
-    expect(instantDock.find('.vl-dock-indicator').attributes('style')).toContain('left: 160px')
+    expect(instantDock.find('.vl-dock-indicator').attributes('style')).toContain('translate3d(160px')
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: 200, clientY: 20, pointerId: 21 }))
   })
 

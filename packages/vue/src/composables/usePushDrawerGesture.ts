@@ -41,7 +41,6 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
 
   const openVelocity = options.openVelocity ?? 0.32
   const snapThreshold = options.snapThreshold ?? 0.36
-  const animMs = options.animMs ?? 340
   const ignoreSelector = options.ignoreSelector ?? DEFAULT_IGNORE_SELECTOR
 
   let gestureActive = false
@@ -54,52 +53,17 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
   let gestureVelocityX = 0
   let suppressNextClick = false
   let suppressClickTimer: number | null = null
-  let tweenRafId: number | null = null
 
-  function stopTween(): void {
-    if (tweenRafId !== null && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(tweenRafId)
-      tweenRafId = null
-    }
-  }
-
-  function animateTo(target: number): void {
-    stopTween()
-    if (typeof window === 'undefined' || typeof performance === 'undefined') {
-      progress.value = target
-      return
-    }
-    const from = progress.value
-    const delta = target - from
-    if (Math.abs(delta) < 0.002) {
-      progress.value = target
-      return
-    }
-    const duration = Math.max(
-      140,
-      Math.round(animMs * Math.min(1, Math.abs(delta) * 1.15 + 0.25)),
-    )
-    const startTime = performance.now()
-
-    const step = (now: number) => {
-      const elapsed = now - startTime
-      const p = Math.min(1, elapsed / duration)
-      progress.value = from + delta * easeNonlinear(p)
-      if (p < 1) {
-        tweenRafId = window.requestAnimationFrame(step)
-      } else {
-        tweenRafId = null
-        progress.value = target
-      }
-    }
-    tweenRafId = window.requestAnimationFrame(step)
+  // Native 120Hz CSS transition handles open/close settle (zero rAF JS tween loop!)
+  function settleTo(target: number): void {
+    progress.value = target
   }
 
   watch(
     () => options.isOpen.value,
     (open) => {
       if (isDragging.value) return
-      animateTo(open ? 1 : 0)
+      settleTo(open ? 1 : 0)
     },
   )
 
@@ -192,7 +156,6 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
         const canSlide = (!options.isOpen.value && dx > 0) || (options.isOpen.value && dx < 0)
         if (canSlide) {
           gestureLocked = 'horizontal'
-          stopTween()
           gestureStartProgress = progress.value
           isDragging.value = true
           if (typeof window !== 'undefined') {
@@ -251,7 +214,7 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
     if (options.isOpen.value !== shouldOpen) {
       options.setOpen(shouldOpen)
     } else {
-      animateTo(target)
+      settleTo(target)
     }
   }
 
@@ -268,7 +231,6 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
 
   onBeforeUnmount(() => {
     cleanupGesture()
-    stopTween()
     if (suppressClickTimer !== null && typeof window !== 'undefined') {
       window.clearTimeout(suppressClickTimer)
       suppressClickTimer = null
@@ -279,7 +241,7 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
     progress,
     isDragging,
     velocity,
-    animateTo,
+    animateTo: settleTo,
     onPointerDown,
     onClickCapture,
   }

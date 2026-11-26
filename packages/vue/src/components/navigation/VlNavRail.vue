@@ -123,17 +123,17 @@ const resolvedH = computed(() => {
 
 const capsuleIndicatorStyle = computed(() => ({
   height: `${resolvedH.value}px`,
-  top: `${resolvedY.value}px`,
+  transform: `translate3d(0, ${resolvedY.value}px, 0)`,
 }))
 
 const barGlideStyle = computed(() => ({
   height: `${resolvedH.value}px`,
-  top: `${resolvedY.value}px`,
+  transform: `translate3d(0, ${resolvedY.value}px, 0)`,
 }))
 
 const barLineStyle = computed(() => ({
   height: `${resolvedH.value}px`,
-  top: `${resolvedY.value}px`,
+  transform: `translate3d(0, ${resolvedY.value}px, 0)`,
 }))
 
 function measure(enableAnim: boolean) {
@@ -346,34 +346,40 @@ onBeforeUnmount(() => {
   right: 5px;
   top: 0;
   border-radius: calc((var(--rail-w) - 10px) / 2);
-  background-color: var(--accent-primary);
+  background-color: transparent;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+}
+
+.vl-rail-indicator::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--accent-primary);
   transform-origin: center;
   transform: scale(1, 1);
+  will-change: transform;
   transition:
     transform 0.28s var(--ease-standard),
     background-color 0.2s var(--ease-standard);
 }
 
-.vl-rail-indicator.pressed,
-.vl-rail-indicator.dragging {
+.vl-rail-indicator.pressed::before,
+.vl-rail-indicator.dragging::before {
   background-color: var(--accent-primary-hover);
   transform: scale(1.32, 1.16);
 }
 
 .vl-rail-indicator.animated {
   transition:
-    top 0.34s var(--ease-emphasized-decel),
-    height 0.3s var(--ease-emphasized-decel),
-    transform 0.28s var(--ease-standard),
-    background-color 0.2s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    height 0.3s var(--ease-standard);
 }
 
 .vl-rail-indicator.dragging {
-  transition:
-    transform 0.24s var(--ease-standard),
-    background-color 0.18s var(--ease-standard);
+  transition: none;
 }
 
 .vl-rail-tab {
@@ -464,45 +470,59 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   top: 0;
-  background-color: var(--bg-base);
+  background-color: transparent;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+}
+
+.vl-rail-bar-block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-base);
   transform-origin: center;
   transform: scale(1, 1);
+  will-change: transform;
   transition:
     transform 0.28s var(--ease-standard),
     background-color 0.2s var(--ease-standard);
 }
 
-.vl-rail-bar-block.pressed,
-.vl-rail-bar-block.dragging {
+.vl-rail-bar-block.pressed::before,
+.vl-rail-bar-block.dragging::before {
   background-color: var(--accent-primary-soft);
   transform: scale(1.18, 1.12);
 }
 
 .vl-rail-bar-block.animated {
   transition:
-    top 0.34s var(--ease-emphasized-decel),
-    height 0.3s var(--ease-emphasized-decel),
-    transform 0.28s var(--ease-standard),
-    background-color 0.2s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    height 0.3s var(--ease-standard);
 }
 
 .vl-rail-bar-block.dragging {
-  transition:
-    transform 0.24s var(--ease-standard),
-    background-color 0.18s var(--ease-standard);
+  transition: none;
 }
 
 .vl-rail-bar-line {
   position: absolute;
   top: 0;
   width: 3px;
-  background-color: var(--accent-primary);
+  background-color: transparent;
   pointer-events: none;
   z-index: 3;
+  will-change: transform;
+}
+
+.vl-rail-bar-line::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent-primary);
   transform-origin: left center;
   transform: scale(1, 1);
+  will-change: transform;
   transition: transform 0.26s var(--ease-standard);
 }
 
@@ -512,23 +532,25 @@ onBeforeUnmount(() => {
 
 .vl-rail-bar-line.side-right {
   right: 0;
+}
+
+.vl-rail-bar-line.side-right::before {
   transform-origin: right center;
 }
 
-.vl-rail-bar-line.pressed,
-.vl-rail-bar-line.dragging {
+.vl-rail-bar-line.pressed::before,
+.vl-rail-bar-line.dragging::before {
   transform: scale(1.45, 1.12);
 }
 
 .vl-rail-bar-line.animated {
   transition:
-    top 0.34s var(--ease-emphasized-decel),
-    height 0.3s var(--ease-emphasized-decel),
-    transform 0.26s var(--ease-standard);
+    transform 0.34s var(--ease-standard),
+    height 0.3s var(--ease-standard);
 }
 
 .vl-rail-bar-line.dragging {
-  transition: transform 0.24s var(--ease-standard);
+  transition: none;
 }
 
 .vl-rail-bar-item {

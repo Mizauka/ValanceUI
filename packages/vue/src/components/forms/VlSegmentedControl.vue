@@ -95,7 +95,7 @@ const indicatorStyle = computed(() => {
         : indicatorW.value
   return {
     width: `${w}px`,
-    left: `${x}px`,
+    transform: `translate3d(${x}px, 0, 0)`,
   }
 })
 
@@ -261,24 +261,33 @@ onBeforeUnmount(() => {
   bottom: 2px;
   left: 0;
   border-radius: calc((var(--seg-h) - 4px) / 2);
-  background-color: var(--accent-primary);
+  background-color: transparent;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+}
+
+.vl-seg-indicator::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--accent-primary);
   transform-origin: center;
   transform: scale(1, 1);
+  will-change: transform;
   transition: transform 0.26s var(--ease-standard);
 }
 
-.vl-seg-indicator.pressed,
-.vl-seg-indicator.dragging {
+.vl-seg-indicator.pressed::before,
+.vl-seg-indicator.dragging::before {
   transform: scale(1.08, 1.2);
 }
 
 .vl-seg-indicator.animated {
   transition:
-    left 0.32s var(--ease-emphasized-decel),
-    width 0.28s var(--ease-emphasized-decel),
-    transform 0.26s var(--ease-standard);
+    transform 0.32s var(--ease-standard),
+    width 0.28s var(--ease-standard);
 }
 
 .vl-seg-indicator.dragging {

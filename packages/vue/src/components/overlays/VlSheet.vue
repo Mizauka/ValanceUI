@@ -38,6 +38,7 @@ const nativeScrollerRef = ref<HTMLElement | null>(null)
 const isNativeTouchScroll = ref(false)
 const nativeMounted = ref(props.open)
 const nativeBackdropRatio = ref(props.open ? 1 : 0)
+const snapDismissPx = ref(360)
 const isDragging = ref(false)
 const dismissing = ref(false)
 const dragOffsetX = ref(0)
@@ -54,7 +55,59 @@ let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
 let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
 let nativeProgrammaticTarget: 'open' | 'close' | null = null
+let nativeOpenToken = 0
 let coarseMql: MediaQueryList | null = null
+let sheetRo: ResizeObserver | null = null
+
+const nativeDismissStyle = computed(() =>
+  props.placement === 'bottom'
+    ? { width: '100%', height: `${snapDismissPx.value}px`, flexBasis: `${snapDismissPx.value}px` }
+    : { width: `${snapDismissPx.value}px`, height: '100%', flexBasis: `${snapDismissPx.value}px` },
+)
+
+function measureSheetDim(): number {
+  const sheet = sheetRef.value
+  if (!sheet) return 360
+  const raw = props.placement === 'bottom' ? sheet.offsetHeight : sheet.offsetWidth
+  return raw > 0 ? raw : 360
+}
+
+function detachSheetObserver() {
+  sheetRo?.disconnect()
+  sheetRo = null
+}
+
+function attachSheetObserver() {
+  detachSheetObserver()
+  if (!isNativeTouchScroll.value || !sheetRef.value || typeof ResizeObserver === 'undefined') return
+  sheetRo = new ResizeObserver(() => {
+    if (!nativeMounted.value) return
+    const next = measureSheetDim()
+    if (Math.abs(next - snapDismissPx.value) <= 1) return
+    snapDismissPx.value = next
+    if (
+      props.open &&
+      !isDragging.value &&
+      nativeProgrammaticTarget === null &&
+      props.placement !== 'left'
+    ) {
+      nextTick(() => {
+        const m = getNativeMetrics()
+        if (m && nativeProgrammaticTarget === null) {
+          setNativeScrollInstant(m.openPos)
+          nativeBackdropRatio.value = 1
+        }
+      })
+    }
+  })
+  sheetRo.observe(sheetRef.value)
+}
+
+function onNativeTouchStart() {
+  if (nativeProgrammaticTarget === 'open') {
+    nativeProgrammaticTarget = null
+  }
+}
 
 function updatePointerMode() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -113,7 +166,10 @@ function scrollNativeSmooth(target: 'open' | 'close') {
   const dest = target === 'open' ? m.openPos : m.closePos
   if (Math.abs(m.current - dest) < 2) {
     nativeBackdropRatio.value = target === 'open' ? 1 : 0
-    if (target === 'close') nativeMounted.value = false
+    if (target === 'close') {
+      detachSheetObserver()
+      nativeMounted.value = false
+    }
     nativeProgrammaticTarget = null
     return
   }
@@ -124,7 +180,7 @@ function scrollNativeSmooth(target: 'open' | 'close') {
     setNativeScrollInstant(dest)
   }
   if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
-  nativeSettleTimer = setTimeout(finalizeNativeScroll, 420)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 580)
 }
 
 function finalizeNativeScroll() {
@@ -139,7 +195,10 @@ function finalizeNativeScroll() {
 
   if (nativeProgrammaticTarget === 'close') {
     nativeProgrammaticTarget = null
-    if (!props.open) nativeMounted.value = false
+    if (!props.open) {
+      detachSheetObserver()
+      nativeMounted.value = false
+    }
     return
   }
   if (nativeProgrammaticTarget === 'open') {
@@ -148,6 +207,7 @@ function finalizeNativeScroll() {
   }
 
   if (m.ratio < 0.45 && props.open) {
+    detachSheetObserver()
     nativeMounted.value = false
     close()
   }
@@ -159,9 +219,9 @@ function onNativeScroll() {
   nativeBackdropRatio.value = m.ratio
   if (nativeProgrammaticTarget === null) {
     isDragging.value = true
+    if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+    nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
   }
-  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
-  nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
 }
 
 function onNativeBackdropClick(e: MouseEvent) {
@@ -199,6 +259,7 @@ useBackHandler(
 watch(
   () => props.open,
   async (isOpen) => {
+    const token = ++nativeOpenToken
     if (isOpen) {
       dismissing.value = false
       dismissFromOffset = null
@@ -209,10 +270,17 @@ watch(
         nativeMounted.value = true
         nativeBackdropRatio.value = 0
         await nextTick()
+        if (token !== nativeOpenToken || !props.open) return
+        snapDismissPx.value = measureSheetDim()
+        await nextTick()
+        if (token !== nativeOpenToken || !props.open) return
+        attachSheetObserver()
         const m = getNativeMetrics()
         if (m) setNativeScrollInstant(m.closePos)
         if (typeof requestAnimationFrame !== 'undefined') {
-          requestAnimationFrame(() => scrollNativeSmooth('open'))
+          requestAnimationFrame(() => {
+            if (token === nativeOpenToken && props.open) scrollNativeSmooth('open')
+          })
         } else {
           scrollNativeSmooth('open')
         }
@@ -268,7 +336,7 @@ function onEnter(el: Element, done: () => void) {
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = 'transform 0.36s var(--ease-standard)'
+  htmlEl.style.transition = 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)'
   htmlEl.style.transform = 'translate3d(0, 0, 0)'
 }
 
@@ -320,7 +388,7 @@ function onLeave(el: Element, done: () => void) {
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = `transform ${durMs}ms var(--ease-standard)`
+  htmlEl.style.transition = `transform ${durMs}ms cubic-bezier(0.32, 0.72, 0, 1)`
   htmlEl.style.transform = offscreenTransform()
 }
 
@@ -423,11 +491,15 @@ onMounted(() => {
   if (isNativeTouchScroll.value && props.open) {
     nativeMounted.value = true
     nextTick(() => {
-      const m = getNativeMetrics()
-      if (m) {
-        setNativeScrollInstant(m.openPos)
-        nativeBackdropRatio.value = 1
-      }
+      snapDismissPx.value = measureSheetDim()
+      nextTick(() => {
+        attachSheetObserver()
+        const m = getNativeMetrics()
+        if (m) {
+          setNativeScrollInstant(m.openPos)
+          nativeBackdropRatio.value = 1
+        }
+      })
     })
   }
   if (typeof window !== 'undefined') {
@@ -442,6 +514,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearActiveAnim()
   cleanupDrag()
+  detachSheetObserver()
   if (nativeSettleTimer !== null) {
     clearTimeout(nativeSettleTimer)
     nativeSettleTimer = null
@@ -469,6 +542,7 @@ onBeforeUnmount(() => {
       ref="nativeScrollerRef"
       class="vl-sheet-native-scroller"
       :class="[`place-${placement}`, { contained }]"
+      @touchstart.passive="onNativeTouchStart"
       @scroll.passive="onNativeScroll"
       @scrollend="finalizeNativeScroll"
     >
@@ -476,6 +550,7 @@ onBeforeUnmount(() => {
       <div
         v-if="placement !== 'left'"
         class="vl-sheet-snap-dismiss"
+        :style="nativeDismissStyle"
         @click="onNativeBackdropClick"
       />
 
@@ -536,6 +611,7 @@ onBeforeUnmount(() => {
       <div
         v-if="placement === 'left'"
         class="vl-sheet-snap-dismiss"
+        :style="nativeDismissStyle"
         @click="onNativeBackdropClick"
       />
     </div>
@@ -669,9 +745,7 @@ onBeforeUnmount(() => {
 }
 
 .vl-sheet-snap-dismiss {
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100%;
+  flex: 0 0 auto;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -707,7 +781,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background-color: var(--bg-base);
   overflow: hidden;
-  transition: transform 0.36s var(--ease-standard);
+  transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .vl-sheet.native-scroll {

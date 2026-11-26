@@ -37,6 +37,39 @@ let resizeObserver: ResizeObserver | null = null
 let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null
 let programmaticScrollTarget: boolean | null = null
 let coarseMql: MediaQueryList | null = null
+let boundaryTouchStartX = 0
+let boundaryTouchStartY = 0
+let boundaryBlockOverscroll = false
+
+function onNativeTouchStart(e: TouchEvent) {
+  if (!isNativeTouchScroll.value || e.touches.length !== 1) return
+  const t = e.touches[0]!
+  boundaryTouchStartX = t.clientX
+  boundaryTouchStartY = t.clientY
+  boundaryBlockOverscroll = false
+}
+
+function onNativeTouchMove(e: TouchEvent) {
+  const scroller = scrollerRef.value
+  if (!isNativeTouchScroll.value || !scroller || e.touches.length !== 1) return
+  const t = e.touches[0]!
+  const dx = t.clientX - boundaryTouchStartX
+  const dy = t.clientY - boundaryTouchStartY
+  if (Math.abs(dx) <= Math.abs(dy)) return
+
+  const maxLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth)
+  const atClosedEdge = scroller.scrollLeft >= maxLeft - 1
+  const atOpenEdge = scroller.scrollLeft <= 1
+
+  // Block reverse-direction overscroll rubber-band at closed/open boundaries
+  // while keeping valid open/close swipes 100% native 120Hz Safari scroll-snap!
+  if ((atClosedEdge && dx < 0) || (atOpenEdge && dx > 0)) {
+    boundaryBlockOverscroll = true
+    if (e.cancelable) e.preventDefault()
+  } else if (boundaryBlockOverscroll && e.cancelable) {
+    e.preventDefault()
+  }
+}
 
 function updatePointerMode() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -248,6 +281,8 @@ defineExpose({
       ref="scrollerRef"
       class="vl-push-scroller"
       :class="{ 'native-scroll': isNativeTouchScroll, 'is-disabled': disabled }"
+      @touchstart.passive="onNativeTouchStart"
+      @touchmove="onNativeTouchMove"
       @scroll.passive="onNativeScroll"
       @scrollend="finalizeNativeScroll"
     >
@@ -316,7 +351,7 @@ defineExpose({
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: none;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }

@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Expandable Sheet Body -->
-    <VlScrollArea v-show="expandRatio > 0.01" class="vl-dock-scroll" :style="{ opacity: morphFactor }">
+    <VlScrollArea class="vl-dock-scroll" :style="{ opacity: morphFactor }">
       <slot />
     </VlScrollArea>
 
@@ -702,7 +702,7 @@ onBeforeUnmount(() => {
 
 .vl-dock-sheet.expanded .vl-dock-nav-slot {
   border-top: 1px solid var(--divider-hairline);
-  max-width: 100%;
-  padding: 6px 10px 6px 10px;
+  max-width: calc(var(--dock-floating-max-width, 380px) + 24px);
+  padding: 6px 18px 6px 18px;
 }
 </style>

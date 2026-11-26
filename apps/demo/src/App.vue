@@ -15,7 +15,6 @@ import {
   VlScrollArea,
   VlSegmentedControl,
   VlSideNav,
-  VlSnapPager,
   VlSplitPane,
   VlStatusBar,
   VlTabBar,
@@ -360,46 +359,25 @@ onBeforeUnmount(() => {
     </VlTitleBar>
 
     <div class="mobile-stage">
-      <VlSnapPager
-        class="center-scroll"
-        :model-value="activeMobileDockId"
-        :pages="['overview', 'gestures', 'buttons']"
-        lazy
-        aria-label="移动端演示分页"
-      >
-        <template #overview>
-          <VlScrollArea class="center-scroll">
-            <div class="center-pad mobile">
+      <VlScrollArea class="center-scroll">
+        <div class="mobile-slide-stage">
+          <Transition :name="mobileDockTransition">
+            <div :key="activeSectionId" class="center-pad mobile">
               <OverviewView v-if="activeSectionId === 'overview'" @navigate="openSection" />
               <ColorsView v-else-if="activeSectionId === 'colors'" />
               <ShapesView v-else-if="activeSectionId === 'shapes'" />
               <TypographyMotionView v-else-if="activeSectionId === 'motion'" />
               <IconsView v-else-if="activeSectionId === 'icons'" />
+              <ButtonsView v-else-if="activeSectionId === 'buttons'" />
               <FormsView v-else-if="activeSectionId === 'forms'" />
               <NavigationView v-else-if="activeSectionId === 'navigation'" />
+              <LayoutGesturesView v-else-if="activeSectionId === 'gestures'" />
               <OverlaysFeedbackView v-else-if="activeSectionId === 'overlays'" />
-              <DataDisplayView v-else-if="activeSectionId === 'data'" />
-              <OverviewView v-else @navigate="openSection" />
+              <DataDisplayView v-else />
             </div>
-          </VlScrollArea>
-        </template>
-
-        <template #gestures>
-          <VlScrollArea class="center-scroll">
-            <div class="center-pad mobile">
-              <LayoutGesturesView />
-            </div>
-          </VlScrollArea>
-        </template>
-
-        <template #buttons>
-          <VlScrollArea class="center-scroll">
-            <div class="center-pad mobile">
-              <ButtonsView />
-            </div>
-          </VlScrollArea>
-        </template>
-      </VlSnapPager>
+          </Transition>
+        </div>
+      </VlScrollArea>
 
       <VlDockSheet
         v-model:detent="mobileDockDetent"

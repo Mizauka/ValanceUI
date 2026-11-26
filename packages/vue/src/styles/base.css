@@ -493,3 +493,52 @@ textarea:focus-visible {
     color: var(--accent-danger-ink);
   }
 }
+
+/* ==========================================================================
+   iOS Safari ProMotion 120Hz Display Booster (Dormant When Idle, Active Only On Touch)
+   ========================================================================== */
+.vl-promotion-host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.vl-promotion-pacer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  overflow: scroll;
+  pointer-events: none;
+  scrollbar-width: none;
+}
+
+.vl-promotion-pacer::-webkit-scrollbar {
+  display: none;
+}
+
+.vl-promotion-pacer > * {
+  visibility: hidden;
+}
+
+.vl-promotion-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  background-color: color-mix(in srgb, currentColor 1%, transparent);
+  animation: 1s linear infinite vl-promotion-rate;
+}
+
+@keyframes vl-promotion-rate {
+  to {
+    transform: translateX(1px);
+  }
+}

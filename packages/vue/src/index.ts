@@ -1,6 +1,10 @@
 import type { App, Plugin } from 'vue'
 import './styles/tokens.css'
 import './styles/base.css'
+import { installProMotionBoost } from './composables/useProMotionBoost'
+
+// Auto-enable on-demand iOS Safari ProMotion 120Hz display boost during touch interactions
+installProMotionBoost()
 
 // Zero-delay mobile touch feedback: bypasses the 100-300ms browser :active delay on touchscreens
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
@@ -369,6 +373,7 @@ export {
 } from './composables/useBackNavigation'
 
 export { useWidthTransition, type WidthTransitionOptions } from './composables/useWidthTransition'
+export { installProMotionBoost } from './composables/useProMotionBoost'
 
 // ─── Plugin Registration ─────────────────────────────────────────────
 const components = {

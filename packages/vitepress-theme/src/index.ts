@@ -42,7 +42,11 @@ export function createValanceTheme(options: ValanceThemeOptions = {}): Theme {
   configureThemeMode({
     themeStorageKey: `${prefix}-theme`,
     accentStorageKey: `${prefix}-accent`,
+    paletteStorageKey: `${prefix}-palette`,
+    monetSeedStorageKey: `${prefix}-monet-seed`,
+    monetHarmonyStorageKey: `${prefix}-monet-harmony`,
     defaultAccent: options.config?.accentDefault ?? 'default',
+    defaultPalette: options.config?.paletteDefault ?? 'valance',
   })
 
   return {

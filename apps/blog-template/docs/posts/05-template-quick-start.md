@@ -42,3 +42,12 @@ description: 显示在首页文章卡片中的摘要描述。
 pnpm --filter @valance-ui/blog-template dev
 pnpm --filter @valance-ui/blog-template build
 ```
+
+## 快捷按键与内置能力
+
+| 快捷键 / 手势 | 功能说明 |
+| --- | --- |
+| `Ctrl+K` / `Cmd+K` | 打开 `VlCommandPalette` 全局搜索与快捷指令（支持正文搜索与正则表达式） |
+| `Ctrl+B` / `Ctrl+Shift+B` | 折叠或展开左侧目录 / 右侧大纲面板 |
+| 移动端任意位置右滑 | 拉出 120Hz 原生挤压式侧边栏 |
+| 移动端底部胶囊上拉 | 展开单 DOM Dock-to-Sheet，随时调节字号、行距、字体与 15 套调色板 |

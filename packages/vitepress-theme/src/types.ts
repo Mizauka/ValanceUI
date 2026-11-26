@@ -43,6 +43,7 @@ export interface ValanceThemeConfig {
   mobileBottomMode?: 'auto' | 'unified' | 'dock-sheet' | 'nav-dock'
   footerNote?: string
   accentDefault?: 'default' | 'swapped'
+  paletteDefault?: string
   storagePrefix?: string
 }
 

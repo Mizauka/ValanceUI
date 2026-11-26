@@ -588,7 +588,11 @@ function clearFilters() {
   }
 
   .blog-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .blog-stats > :last-child {
+    grid-column: span 2;
   }
 
   .filter-top {

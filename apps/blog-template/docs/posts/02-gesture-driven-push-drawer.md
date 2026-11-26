@@ -1,42 +1,36 @@
 ---
-title: 1:1 拖拽挤压式侧边栏与 iOS Safari 零闪烁补间算法
+title: 1:1 原生手势侧边栏：WebKit scroll-snap 与双向驱动引擎
 category: 前端工程
 date: 2026-11-22
 tags:
   - 手势交互
   - Vue 3
-  - 动画物理
-description: 剖析 VlPushDrawer 如何避开系统边缘返回冲突，并使用牛顿迭代三次贝塞尔 rAF 补间彻底消除 Safari 图层闪烁。
+  - 120Hz ProMotion
+description: 剖析 VlPushDrawer 如何在移动端以原生 UIScrollView scroll-snap 跑满 120Hz ProMotion，并在桌面端保留牛顿迭代三次贝塞尔 rAF 补间。
 ---
 
-移动端抽屉最常见的问题有两个：**系统边缘手势冲突** 与 **松手瞬间从 `transition: none` 切回 CSS transition 时的 1 帧闪烁**。
+移动端侧边抽屉在 Web 上长期面临三大难题：**iOS Safari 边缘返回冲突**、**JS 拖拽无法触发 120Hz ProMotion 合成帧率**，以及 **松手补间交接时的图层闪烁**。
 
-## 一、全屏方向锁手势识别
+## 一、双模统一驱动：`scroll-snap` 与 rAF 牛顿迭代
 
-`usePushDrawerGesture` 允许用户在屏幕**任意位置**横向滑出抽屉（同时自动避开 `input`、`select`、横向图表和底部 Dock 区域）：
+`VlPushDrawer` 会根据指针类型（`(pointer: coarse)`）自动选择最优物理管线：
 
-- 前 `12px` 死区判定滑动方向：仅当 $|\Delta x| > |\Delta y| \times 1.35$ 且方向与当前开关状态匹配时锁定为水平手势；
-- 纵向阅读滚动与横向抽屉滑动互不干扰；
-- 释放指针后在 `240ms` 窗口内抑制浏览器合成的误触 `click` 事件。
+- **移动端触控设备**：直接构建原生横向 `scroll-snap-type: x mandatory` 容器，将抽屉与主画布纳入同一 `UIScrollView` 合成层。指尖滑动与松手惯性收尾 100% 由 CoreAnimation 合成线程以 **120Hz 满帧** 接管。
+- **桌面精细指针设备**：采用 `requestAnimationFrame` + 牛顿迭代四阶求解三次贝塞尔 `cubic-bezier(0.22, 1, 0.36, 1)` 连续补间，保证鼠标拖动同样丝滑顺畅。
 
-## 二、连续 rAF 牛顿迭代三次贝塞尔补间
+## 二、边界反向橡皮筋锁定
 
-在 iOS Safari WebKit 中，拖拽时关闭 CSS `transition` 并在 `pointerup` 时重新加上 `transition: transform`，容易触发 CoreAnimation 合成层闪烁一帧。
+在原生 `scroll-snap` 模式下，如果在侧边栏已经关闭时继续向左划（或已完全打开时继续向右拉），Safari 默认的横向橡皮筋回弹容易产生“像在拉一条滚动条”的错觉。
+
+`VlPushDrawer` 在 `touchstart` / `touchmove` 阶段即时检测 `scrollLeft` 边界与横向手势符号：
 
 ```ts
-export function easeNonlinear(t: number): number {
-  const x = Math.max(0, Math.min(1, t))
-  let u = x
-  for (let i = 0; i < 4; i++) {
-    const inv = 1 - u
-    const bx = 3 * inv * inv * u * 0.22 + 3 * inv * u * u * 0.36 + u * u * u
-    const dbx = 3 * inv * inv * 0.22 + 6 * inv * u * (0.36 - 0.22) + 3 * u * u * (1 - 0.36)
-    if (Math.abs(dbx) < 1e-5) break
-    u = Math.max(0, Math.min(1, u - (bx - x) / dbx))
-  }
-  const inv = 1 - u
-  return 3 * inv * inv * u + 3 * inv * u * u + u * u * u
+const atClosedEdge = scroller.scrollLeft >= maxLeft - 1
+const atOpenEdge = scroller.scrollLeft <= 1
+
+if ((atClosedEdge && dx < 0) || (atOpenEdge && dx > 0)) {
+  if (e.cancelable) e.preventDefault()
 }
 ```
 
-通过统一的 `translate3d(${offset}px, 0, 0)` 与 `requestAnimationFrame` 驱动，抽屉和主画布始终在同一条时间轴上无缝衔接。
+既彻底消除边界误触露底，又完全保留有效开合滑动的 120Hz 原生合成管线。

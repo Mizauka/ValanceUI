@@ -1,12 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { Content } from 'vitepress'
+import {
+  ref,
+  computed,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  markRaw,
+  shallowReactive,
+  type Component,
+  type ComponentPublicInstance,
+} from 'vue'
+import { Content, useRoute } from 'vitepress'
 import {
   VlActivityBar,
+  VlBackTop,
   VlBadge,
   VlBottomDock,
   VlBreadcrumb,
   VlButton,
+  VlCommandPalette,
   VlDockSheet,
   VlIcon,
   VlIconButton,
@@ -15,6 +28,7 @@ import {
   VlPushDrawer,
   VlScrollArea,
   VlSegmentedControl,
+  VlSnapPager,
   VlSplitPane,
   VlStatusBar,
   VlStepper,
@@ -25,6 +39,7 @@ import {
   useWidthTransition,
   type ActivityBarItem,
   type BottomDockItem,
+  type CommandPaletteItem,
   type SegmentOption,
 } from '@valance-ui/vue'
 import VpSidebarPanel from './VpSidebarPanel.vue'
@@ -35,8 +50,10 @@ import VpBlogPostHeader from './VpBlogPostHeader.vue'
 import VpNotFound from './VpNotFound.vue'
 import {
   useBlogState,
+  normalizeBlogPath,
   BLOG_WIDTH_PX,
   type BlogActivitySection,
+  type BlogFontFamily,
   type BlogWidthPreset,
 } from '../composables/useBlogState'
 
@@ -79,6 +96,8 @@ const {
   setRightWidth,
   setDualSideRatio,
   setFontSize,
+  setLineHeight,
+  setFontFamily,
   setWidthPreset,
   saveScroll,
   getScroll,
@@ -94,8 +113,47 @@ const {
   toggleAccent,
 } = useThemeMode()
 const { isWidthMorphing, runWidthTransition } = useWidthTransition()
+const route = useRoute()
 
 const scrollRef = ref<InstanceType<typeof VlScrollArea> | null>(null)
+const desktopVp = ref<HTMLElement | null>(null)
+const cmdPaletteOpen = ref(false)
+
+const pageScrollRefs: Record<string, InstanceType<typeof VlScrollArea> | null> = {}
+const docComponents = shallowReactive<Record<string, Component>>({})
+const docNotFoundPaths = shallowReactive<Record<string, boolean>>({})
+
+function setPageScrollRef(path: string, el: Element | ComponentPublicInstance | null) {
+  pageScrollRefs[path] = (el as InstanceType<typeof VlScrollArea> | null) ?? null
+}
+
+function captureCurrentRoute() {
+  const norm = currentPath.value
+  if (layoutKind.value === '404') {
+    docNotFoundPaths[norm] = true
+    return
+  }
+  delete docNotFoundPaths[norm]
+  if (layoutKind.value === 'doc' && route.component) {
+    docComponents[norm] = markRaw(route.component)
+  }
+}
+
+watch(
+  [currentPath, layoutKind, () => route.component],
+  () => {
+    captureCurrentRoute()
+  },
+  { immediate: true },
+)
+
+function getActiveScrollArea(): InstanceType<typeof VlScrollArea> | null {
+  return isPhone.value ? (pageScrollRefs[currentPath.value] ?? null) : scrollRef.value
+}
+
+function getActiveViewport(): HTMLElement | null {
+  return getActiveScrollArea()?.getViewport() ?? null
+}
 
 const topActivityItems = computed<ActivityBarItem[]>(() => [
   { id: 'explorer', icon: 'files', label: '内容目录' },
@@ -124,25 +182,113 @@ const widthOptions: SegmentOption<BlogWidthPreset>[] = [
   { value: 'wide', label: '宽' },
 ]
 
+const fontOptions: SegmentOption<BlogFontFamily>[] = [
+  { value: 'sans', label: '无衬线' },
+  { value: 'serif', label: '衬线体' },
+]
+
 const mobileDockItems = computed<BottomDockItem[]>(() => [
   { id: '/', label: '首页', icon: 'home' },
   { id: '/archive', label: '归档', icon: 'archive' },
   { id: '/about', label: '关于', icon: 'user' },
 ])
 
+const mobileDockIds = computed(() => mobileDockItems.value.map((item) => item.id))
+
 const activeMobileNav = computed(() => {
   const match = mobileDockItems.value.find((item) => item.id === currentPath.value)
   return match ? match.id : '/'
 })
 
-const mobileTransitionName = computed(() =>
-  mobileNavDirection.value === 'left' ? 'dock-slide-left' : 'dock-slide-right',
+const mobilePagerDirection = computed<'next' | 'prev'>(() =>
+  mobileNavDirection.value === 'left' ? 'next' : 'prev',
 )
 
 const useMobileDockSheet = computed(() => {
   const mode = themeCfg.value.mobileBottomMode ?? 'unified'
   return mode !== 'nav-dock'
 })
+
+const commandItems = computed<CommandPaletteItem[]>(() => {
+  const items: CommandPaletteItem[] = [
+    { id: '/', label: '首页文章', subtitle: '全部文章与筛选看板', group: '站点导航', icon: 'home', badge: `${posts.value.length} 篇` },
+    { id: '/archive', label: '时间线归档', subtitle: '按年份与标签索引浏览', group: '站点导航', icon: 'archive' },
+    { id: '/about', label: '关于模板', subtitle: '主题架构、配置与使用指南', group: '站点导航', icon: 'user' },
+    ...posts.value.map((post) => ({
+      id: normalizeBlogPath(post.url),
+      label: post.title,
+      subtitle: `${post.category ?? '随笔'} · ${post.dateText ?? post.date}`,
+      excerpt: post.excerpt,
+      group: '文章目录',
+      icon: 'doc' as const,
+      badge: post.readingMinutes ? `${post.readingMinutes}m` : undefined,
+      keywords: [...(post.tags ?? []), post.category ?? '', post.plainText?.slice(0, 180) ?? ''],
+    })),
+    {
+      id: 'action:theme',
+      label: resolvedTheme.value === 'dark' ? '切换为亮色暖纸 (#FDFCF9)' : '切换为暗色炭岩 (#273033)',
+      subtitle: '圆形扩散明暗切换',
+      group: '快捷指令',
+      icon: resolvedTheme.value === 'dark' ? 'sun' : 'moon',
+    },
+    {
+      id: 'action:accent',
+      label: accentScheme.value === 'default' ? '对调主辅主题色（主青辅橘）' : '恢复默认主题色（主橘辅青）',
+      subtitle: `当前调色板：${activePalette.value.name}`,
+      group: '快捷指令',
+      icon: 'palette',
+    },
+  ]
+  if (!isPhone.value) {
+    items.push(
+      {
+        id: 'action:toggle-left',
+        label: leftShown.value ? '收起左侧目录面板' : '展开左侧目录面板',
+        group: '快捷指令',
+        icon: 'panel-left',
+        shortcut: 'Ctrl+B',
+      },
+      {
+        id: 'action:toggle-right',
+        label: rightShown.value ? '收起右侧大纲面板' : '展开右侧大纲面板',
+        group: '快捷指令',
+        icon: 'panel-right',
+        shortcut: 'Ctrl+Shift+B',
+      },
+    )
+  }
+  return items
+})
+
+function onCommandSelect(item: CommandPaletteItem) {
+  if (item.id === 'action:theme') {
+    toggleTheme()
+    return
+  }
+  if (item.id === 'action:accent') {
+    toggleAccent()
+    return
+  }
+  if (item.id === 'action:toggle-left') {
+    toggleLeftPanel()
+    return
+  }
+  if (item.id === 'action:toggle-right') {
+    toggleRightPanel()
+    return
+  }
+  openPath(item.id)
+}
+
+function getAdjacentForPath(path: string) {
+  const norm = normalizeBlogPath(path)
+  const idx = posts.value.findIndex((p) => normalizeBlogPath(p.url) === norm)
+  if (idx === -1) return { prev: null, next: null }
+  return {
+    prev: idx < posts.value.length - 1 ? posts.value[idx + 1] ?? null : null,
+    next: idx > 0 ? posts.value[idx - 1] ?? null : null,
+  }
+}
 
 const breadcrumbItems = computed(() => {
   const items: { label: string; to?: string; active?: boolean }[] = [
@@ -183,7 +329,7 @@ function onActivitySelect(item: ActivityBarItem) {
 }
 
 function collectHeadings() {
-  const vp = scrollRef.value?.getViewport()
+  const vp = getActiveViewport()
   if (!vp) {
     headings.value = []
     return
@@ -219,7 +365,7 @@ function handleCanvasScroll(vp: HTMLElement) {
 }
 
 function jumpToHeading(id: string) {
-  const vp = scrollRef.value?.getViewport()
+  const vp = getActiveViewport()
   if (!vp) return
   const target = vp.querySelector<HTMLElement>(`#${CSS.escape(id)}`)
   if (target) {
@@ -250,23 +396,42 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 watch(currentPath, async (next, prev) => {
-  const vp = scrollRef.value?.getViewport()
-  if (vp && prev) saveScroll(prev, vp.scrollTop)
+  if (!isPhone.value) {
+    const vp = scrollRef.value?.getViewport()
+    if (vp && prev) saveScroll(prev, vp.scrollTop)
+  }
   await nextTick()
-  const newVp = scrollRef.value?.getViewport()
+  const activeArea = getActiveScrollArea()
+  const newVp = activeArea?.getViewport() ?? null
   if (newVp) {
-    newVp.scrollTop = getScroll(next)
+    if (!isPhone.value) {
+      newVp.scrollTop = getScroll(next)
+    }
     handleCanvasScroll(newVp)
   }
+  if (!isPhone.value) {
+    desktopVp.value = newVp
+  }
   collectHeadings()
-  scrollRef.value?.syncMetrics()
+  activeArea?.syncMetrics()
+})
+
+watch(isPhone, async () => {
+  await nextTick()
+  desktopVp.value = isPhone.value ? null : (scrollRef.value?.getViewport() ?? null)
+  collectHeadings()
 })
 
 onMounted(async () => {
   ensureHydrated()
+  captureCurrentRoute()
   await nextTick()
+  const activeArea = getActiveScrollArea()
+  const vp = activeArea?.getViewport() ?? null
+  if (!isPhone.value) {
+    desktopVp.value = vp
+  }
   collectHeadings()
-  const vp = scrollRef.value?.getViewport()
   if (vp) handleCanvasScroll(vp)
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', handleKeydown)
@@ -281,7 +446,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- ==================== MOBILE PUSH-DRAWER + DOCK / DOCK-TO-SHEET ==================== -->
+  <!-- ==================== MOBILE PUSH-DRAWER + 120HZ SNAP PAGER + DOCK-TO-SHEET ==================== -->
   <VlPushDrawer
     v-if="isPhone"
     :open="mobileDrawerOpen"
@@ -307,45 +472,103 @@ onBeforeUnmount(() => {
       center-active
       :left-active="mobileDrawerOpen"
       :right-active="mobileDockDetent !== 'docked'"
-      :show-right-toggle="useMobileDockSheet"
       @toggle-left="toggleLeftPanel"
       @toggle-right="toggleRightPanel"
-    />
+    >
+      <template #right>
+        <div class="mobile-tb-actions">
+          <VlIconButton
+            icon="search"
+            size="sm"
+            morph-on-hover
+            title="快速搜索文章 (Ctrl+K)"
+            @click="cmdPaletteOpen = true"
+          />
+          <VlIconButton
+            :icon="resolvedTheme === 'dark' ? 'sun' : 'moon'"
+            size="sm"
+            morph-on-hover
+            title="切换亮暗模式"
+            @click="toggleTheme($event)"
+          />
+        </div>
+      </template>
+    </VlTitleBar>
 
     <div class="mobile-stage-host">
       <VlProgress v-if="layoutKind === 'doc'" :value="readingProgress" :height="3" />
 
-      <VlScrollArea
-        ref="scrollRef"
+      <VlSnapPager
         class="center-scroll"
-        @scroll="handleCanvasScroll"
+        :model-value="currentPath"
+        :pages="mobileDockIds"
+        :direction="mobilePagerDirection"
+        aria-label="移动端博客分页"
       >
-        <Transition :name="mobileTransitionName" mode="out-in">
-          <div
-            :key="currentPath"
-            class="center-canvas mobile"
-            :style="{
-              maxWidth: '100%',
-              '--reader-font-size': `${fontSize}px`,
-              '--reader-line-height': `${lineHeight}`,
-            }"
+        <template #default="{ pageId }">
+          <VlScrollArea
+            :ref="(el) => setPageScrollRef(pageId, el)"
+            class="center-scroll"
+            @scroll="(vp) => pageId === currentPath && handleCanvasScroll(vp)"
           >
-            <VpBlogHome v-if="layoutKind === 'home'" />
-            <VpBlogArchive v-else-if="layoutKind === 'archive'" />
-            <VpNotFound v-else-if="layoutKind === '404'" />
-            <article v-else class="blog-doc-article">
-              <slot name="doc-before" />
-              <VpBlogPostHeader />
-              <div class="vp-doc vl-prose" :class="`font-${fontFamily}`">
-                <Content />
-              </div>
-              <slot name="doc-after" />
-            </article>
-          </div>
-        </Transition>
-      </VlScrollArea>
+            <div
+              class="center-canvas mobile"
+              :style="{
+                maxWidth: '100%',
+                '--reader-font-size': `${fontSize}px`,
+                '--reader-line-height': `${lineHeight}`,
+              }"
+            >
+              <VpBlogHome v-if="pageId === '/'" />
+              <VpBlogArchive v-else-if="pageId === '/archive'" />
+              <VpNotFound v-else-if="docNotFoundPaths[pageId]" />
+              <article v-else class="blog-doc-article">
+                <slot v-if="pageId === currentPath" name="doc-before" />
+                <VpBlogPostHeader :post-path="pageId" />
+                <div class="vp-doc vl-prose" :class="`font-${fontFamily}`">
+                  <component :is="docComponents[pageId]" v-if="docComponents[pageId]" />
+                  <Content v-else-if="pageId === currentPath" />
+                </div>
+                <slot v-if="pageId === currentPath" name="doc-after" />
 
-      <!-- 2-in-1 Floating Nav + Dock-to-Sheet (always keeps nav bar accessible across Home / Archive / About / Posts) -->
+                <nav
+                  v-if="getAdjacentForPath(pageId).prev || getAdjacentForPath(pageId).next"
+                  class="post-pager mobile shape-rect"
+                  aria-label="上下篇导航"
+                >
+                  <button
+                    v-if="getAdjacentForPath(pageId).prev"
+                    type="button"
+                    class="pager-btn shape-pill"
+                    @click="openPath(getAdjacentForPath(pageId).prev!.url)"
+                  >
+                    <VlIcon name="arrow-left" :size="14" />
+                    <span class="pager-text">
+                      <small>上一篇</small>
+                      <strong>{{ getAdjacentForPath(pageId).prev!.title }}</strong>
+                    </span>
+                  </button>
+
+                  <button
+                    v-if="getAdjacentForPath(pageId).next"
+                    type="button"
+                    class="pager-btn shape-pill"
+                    @click="openPath(getAdjacentForPath(pageId).next!.url)"
+                  >
+                    <span class="pager-text align-right">
+                      <small>下一篇</small>
+                      <strong>{{ getAdjacentForPath(pageId).next!.title }}</strong>
+                    </span>
+                    <VlIcon name="arrow-right" :size="14" />
+                  </button>
+                </nav>
+              </article>
+            </div>
+          </VlScrollArea>
+        </template>
+      </VlSnapPager>
+
+      <!-- 2-in-1 Floating Nav + Dock-to-Sheet -->
       <VlDockSheet
         v-if="useMobileDockSheet"
         :detent="mobileDockDetent"
@@ -375,10 +598,32 @@ onBeforeUnmount(() => {
               :hint="`${fontSize} px`"
               @update:model-value="setFontSize"
             />
+            <VlStepper
+              :model-value="lineHeight"
+              :min="1.5"
+              :max="2.3"
+              :step="0.1"
+              :precision="2"
+              label="正文行距"
+              :hint="`${lineHeight.toFixed(2)} 倍`"
+              @update:model-value="setLineHeight"
+            />
+            <div class="mobile-pref-row">
+              <span class="mobile-pref-label">阅读字体</span>
+              <VlSegmentedControl
+                :model-value="fontFamily"
+                :options="fontOptions"
+                size="sm"
+                surface="surface"
+                @update:model-value="setFontFamily"
+              />
+            </div>
           </div>
+
           <div class="mobile-quick-prefs">
             <VlPalettePicker compact />
           </div>
+
           <slot name="dock-sheet-body">
             <VpRightOutline v-if="layoutKind === 'doc'" @jump-heading="jumpToHeading" />
           </slot>
@@ -410,6 +655,13 @@ onBeforeUnmount(() => {
     >
       <template #right>
         <slot name="titlebar-right" />
+        <VlIconButton
+          icon="search"
+          size="sm"
+          morph-on-hover
+          title="全局搜索与快捷指令 (Ctrl+K)"
+          @click="cmdPaletteOpen = true"
+        />
         <VlIconButton
           :icon="resolvedTheme === 'dark' ? 'sun' : 'moon'"
           size="sm"
@@ -600,8 +852,17 @@ onBeforeUnmount(() => {
         </span>
       </template>
     </VlStatusBar>
+
+    <VlBackTop v-if="desktopVp" :target="desktopVp" :bottom-offset="42" />
   </div>
 
+  <VlCommandPalette
+    v-model:open="cmdPaletteOpen"
+    :items="commandItems"
+    placeholder="搜索文章标题、标签、正文或切换主题 (支持正则)…"
+    enable-hotkey
+    @select="onCommandSelect"
+  />
   <VlToast />
 </template>
 
@@ -632,6 +893,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.mobile-tb-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .center-scroll {
   flex: 1;
   min-height: 0;
@@ -649,7 +916,7 @@ onBeforeUnmount(() => {
 }
 
 .center-canvas.mobile {
-  padding: 18px 16px calc(144px + var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px))) 16px;
+  padding: 16px 14px calc(144px + var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px))) 14px;
 }
 
 .doc-stat {
@@ -670,6 +937,22 @@ onBeforeUnmount(() => {
   padding: 10px 12px;
   background-color: var(--bg-elevated);
   border: 1px solid var(--divider-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobile-pref-label {
+  font-size: var(--ui-font-sm);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .post-pager {
@@ -681,6 +964,18 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.post-pager.mobile {
+  margin-top: 32px;
+  padding-top: 18px;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.post-pager.mobile .pager-btn {
+  max-width: 100%;
+  justify-content: space-between;
 }
 
 .pager-btn {

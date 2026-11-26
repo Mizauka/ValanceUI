@@ -146,3 +146,12 @@
   color: var(--accent-primary-text);
   user-select: none;
 }
+
+@media (max-width: 768px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+}

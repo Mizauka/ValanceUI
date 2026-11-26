@@ -1,16 +1,41 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { VlBadge, VlTag } from '@valance-ui/vue'
-import { useBlogState } from '../composables/useBlogState'
+import { useBlogState, normalizeBlogPath } from '../composables/useBlogState'
 
-const { frontmatter, page, currentPost, selectedTag, openPath } = useBlogState()
+const props = defineProps<{
+  postPath?: string
+}>()
 
-const title = computed(() => frontmatter.value?.title || currentPost.value?.title || page.value.title)
-const category = computed(() => frontmatter.value?.category || currentPost.value?.category)
-const date = computed(() => currentPost.value?.dateText || frontmatter.value?.date || currentPost.value?.date)
-const tags = computed<string[]>(() => frontmatter.value?.tags || currentPost.value?.tags || [])
-const readingMinutes = computed(() => currentPost.value?.readingMinutes)
-const wordCount = computed(() => currentPost.value?.wordCount)
+const { frontmatter, page, postsByUrl, currentPath, currentPost, selectedTag, openPath } = useBlogState()
+
+const resolvedPost = computed(() => {
+  if (props.postPath) {
+    return postsByUrl.value[normalizeBlogPath(props.postPath)] ?? null
+  }
+  return currentPost.value
+})
+
+const isCurrent = computed(() => !props.postPath || normalizeBlogPath(props.postPath) === currentPath.value)
+
+const title = computed(() =>
+  isCurrent.value
+    ? frontmatter.value?.title || resolvedPost.value?.title || page.value.title
+    : resolvedPost.value?.title,
+)
+const category = computed(() =>
+  isCurrent.value ? frontmatter.value?.category || resolvedPost.value?.category : resolvedPost.value?.category,
+)
+const date = computed(() =>
+  isCurrent.value
+    ? resolvedPost.value?.dateText || frontmatter.value?.date || resolvedPost.value?.date
+    : resolvedPost.value?.dateText || resolvedPost.value?.date,
+)
+const tags = computed<string[]>(() =>
+  isCurrent.value ? frontmatter.value?.tags || resolvedPost.value?.tags || [] : resolvedPost.value?.tags || [],
+)
+const readingMinutes = computed(() => resolvedPost.value?.readingMinutes)
+const wordCount = computed(() => resolvedPost.value?.wordCount)
 
 function jumpTag(tag: string) {
   selectedTag.value = tag

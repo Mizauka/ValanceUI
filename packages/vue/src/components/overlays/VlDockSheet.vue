@@ -62,6 +62,7 @@ const emit = defineEmits<{
 const hostHeight = ref(760)
 const hostWidth = ref(390)
 const sheetRef = ref<HTMLElement | null>(null)
+const scrollAreaRef = ref<InstanceType<typeof VlScrollArea> | null>(null)
 const isDragging = ref(false)
 const navPressed = ref(false)
 const navFollow = ref({ x: 0, y: 0, dragging: false })
@@ -74,6 +75,10 @@ let lastTime = 0
 let velocityY = 0
 let movedBeyondTap = false
 let resizeObserver: ResizeObserver | null = null
+let bodyStartX = 0
+let bodyStartY = 0
+let bodyPullActive = false
+let bodyLockedAsInnerScroll = false
 
 const hasNav = computed(() => Boolean(props.navItems && props.navItems.length > 0))
 
@@ -312,6 +317,65 @@ function onPointerUp() {
   if (best) setDetent(best.detent)
 }
 
+function onBodyTouchStart(e: TouchEvent) {
+  if (props.detent === 'docked' || e.touches.length !== 1) return
+  const t = e.touches[0]!
+  bodyStartX = t.clientX
+  bodyStartY = t.clientY
+  bodyPullActive = false
+  bodyLockedAsInnerScroll = false
+}
+
+function onBodyTouchMove(e: TouchEvent) {
+  if (props.detent === 'docked' || e.touches.length !== 1 || bodyLockedAsInnerScroll) return
+  const t = e.touches[0]!
+  const dx = t.clientX - bodyStartX
+  const dy = t.clientY - bodyStartY
+
+  if (!bodyPullActive) {
+    if (Math.hypot(dx, dy) < 6) return
+    if (Math.abs(dx) > Math.abs(dy)) {
+      bodyLockedAsInnerScroll = true
+      return
+    }
+    const vp = scrollAreaRef.value?.getViewport()
+    const atTop = !vp || vp.scrollTop <= 1
+    if (dy > 0 && atTop) {
+      bodyPullActive = true
+      measureHost()
+      isDragging.value = true
+      movedBeyondTap = true
+      startY = t.clientY
+      lastY = t.clientY
+      lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      velocityY = 0
+      startHeight = getDetentHeight(props.detent)
+      dragHeight.value = startHeight
+    } else {
+      bodyLockedAsInnerScroll = true
+      return
+    }
+  }
+
+  if (e.cancelable) e.preventDefault()
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const dt = Math.max(1, now - lastTime)
+  velocityY = (t.clientY - lastY) / dt
+  lastY = t.clientY
+  lastTime = now
+  dragHeight.value = clampHeightWithRubberBand(startHeight - (t.clientY - startY))
+}
+
+function onBodyTouchEnd() {
+  if (!bodyPullActive) {
+    bodyLockedAsInnerScroll = false
+    return
+  }
+  bodyPullActive = false
+  bodyLockedAsInnerScroll = false
+  onPointerUp()
+}
+
 function handleHeaderClick() {
   if (movedBeyondTap) {
     movedBeyondTap = false
@@ -406,10 +470,18 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Expandable Sheet Body -->
-    <VlScrollArea class="vl-dock-scroll" :style="{ opacity: morphFactor }">
-      <slot />
-    </VlScrollArea>
+    <!-- Expandable Sheet Body (Pulling down at scrollTop === 0 seamlessly collapses the sheet) -->
+    <div
+      class="vl-dock-body-wrap"
+      @touchstart.passive="onBodyTouchStart"
+      @touchmove="onBodyTouchMove"
+      @touchend="onBodyTouchEnd"
+      @touchcancel="onBodyTouchEnd"
+    >
+      <VlScrollArea ref="scrollAreaRef" class="vl-dock-scroll" :style="{ opacity: morphFactor }">
+        <slot />
+      </VlScrollArea>
+    </div>
 
     <!-- Embedded Enlarged Floating Nav Capsule (2-in-1 Mode) -->
     <div
@@ -680,11 +752,23 @@ onBeforeUnmount(() => {
   color: var(--accent-primary-ink);
 }
 
+.vl-dock-body-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .vl-dock-scroll {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   transition: opacity 0.28s var(--ease-standard);
+}
+
+.vl-dock-scroll :deep(.csa-viewport) {
+  overscroll-behavior-y: none;
 }
 
 .vl-dock-sheet.dragging .vl-dock-scroll {

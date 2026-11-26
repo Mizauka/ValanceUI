@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   VlPanel,
   VlPalettePicker,
@@ -49,6 +49,19 @@ const {
   setWidthPreset,
   resetLayout,
 } = useBlogState()
+
+const activityOrder = ['explorer', 'search', 'archive', 'settings'] as const
+const sidebarDir = ref<'next' | 'prev'>('next')
+const sidebarTransition = computed(() =>
+  sidebarDir.value === 'next' ? 'vl-slide-fade-v-next' : 'vl-slide-fade-v-prev',
+)
+watch(activitySection, (next, prev) => {
+  const fromIdx = activityOrder.indexOf(prev)
+  const toIdx = activityOrder.indexOf(next)
+  if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+    sidebarDir.value = toIdx > fromIdx ? 'next' : 'prev'
+  }
+})
 
 const {
   themePreference,
@@ -159,26 +172,29 @@ function pickCategory(cat: string) {
 </script>
 
 <template>
-  <!-- SECTION 1: Explorer -->
-  <VlPanel
-    v-if="activitySection === 'explorer'"
-    title="内容资源管理器"
-    badge="EXPLORER"
-    padded
-  >
-    <VlSideNav
-      :groups="navGroups"
-      :active-id="currentPath"
-      @select="onSelectNav"
-    />
-  </VlPanel>
+  <Transition :name="sidebarTransition" mode="out-in">
+    <!-- SECTION 1: Explorer -->
+    <VlPanel
+      v-if="activitySection === 'explorer'"
+      key="vp-explorer"
+      title="内容资源管理器"
+      badge="EXPLORER"
+      padded
+    >
+      <VlSideNav
+        :groups="navGroups"
+        :active-id="currentPath"
+        @select="onSelectNav"
+      />
+    </VlPanel>
 
-  <!-- SECTION 2: Search -->
-  <VlPanel
-    v-else-if="activitySection === 'search'"
-    title="全局搜索"
-    badge="SEARCH"
-  >
+    <!-- SECTION 2: Search -->
+    <VlPanel
+      v-else-if="activitySection === 'search'"
+      key="vp-search"
+      title="全局搜索"
+      badge="SEARCH"
+    >
     <template #toolbar>
       <div class="sidebar-search-bar">
         <VlInput
@@ -228,6 +244,7 @@ function pickCategory(cat: string) {
   <!-- SECTION 3: Categories & Tags -->
   <VlPanel
     v-else-if="activitySection === 'archive'"
+    key="vp-archive"
     title="分类与标签"
     badge="TAXONOMY"
     padded
@@ -267,6 +284,7 @@ function pickCategory(cat: string) {
   <!-- SECTION 4: Settings -->
   <VlPanel
     v-else
+    key="vp-settings"
     title="外观与阅读设置"
     badge="PREFERENCES"
   >
@@ -368,6 +386,7 @@ function pickCategory(cat: string) {
       </section>
     </div>
   </VlPanel>
+  </Transition>
 </template>
 
 <style scoped>

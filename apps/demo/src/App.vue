@@ -292,46 +292,48 @@ onBeforeUnmount(() => {
         @select="onActivitySelect"
       />
       <div class="drawer-body">
-        <VlPanel v-if="activitySection === 'catalog'" title="组件与规范目录" badge="DEMO" padded>
-          <VlSideNav :groups="navGroups" :active-id="activeSectionId" @select="onSelectNav" />
-        </VlPanel>
-        <VlPanel v-else-if="activitySection === 'search'" title="搜索演示模块" badge="SEARCH" padded>
-          <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable placeholder="搜索模块…" />
-          <div class="search-list">
-            <button
-              v-for="item in filteredSearch"
-              :key="item.id"
-              type="button"
-              class="search-row shape-rect"
-              :class="{ active: item.id === activeSectionId }"
-              @click="openSection(item.id)"
-            >
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.summary }}</small>
-            </button>
-          </div>
-        </VlPanel>
-        <VlPanel v-else title="外观设置" badge="THEME" padded>
-          <div class="setting-stack">
-            <VlSegmentedControl
-              :model-value="themePreference"
-              :options="themeOpts"
-              variant="morph-grid"
-              :columns="3"
-              @select="(v, e) => setThemePreference(v, e)"
-            />
-            <VlSegmentedControl
-              :model-value="accentScheme"
-              :options="accentOpts"
-              variant="morph-grid"
-              :columns="2"
-              @select="(v, e) => setAccentScheme(v, e)"
-            />
+        <Transition :name="sidebarTransition" mode="out-in">
+          <VlPanel v-if="activitySection === 'catalog'" key="mobile-catalog" title="组件与规范目录" badge="DEMO" padded>
+            <VlSideNav :groups="navGroups" :active-id="activeSectionId" @select="onSelectNav" />
+          </VlPanel>
+          <VlPanel v-else-if="activitySection === 'search'" key="mobile-search" title="搜索演示模块" badge="SEARCH" padded>
+            <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable placeholder="搜索模块…" />
+            <div class="search-list">
+              <button
+                v-for="item in filteredSearch"
+                :key="item.id"
+                type="button"
+                class="search-row shape-rect"
+                :class="{ active: item.id === activeSectionId }"
+                @click="openSection(item.id)"
+              >
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.summary }}</small>
+              </button>
+            </div>
+          </VlPanel>
+          <VlPanel v-else key="mobile-settings" title="外观设置" badge="THEME" padded>
+            <div class="setting-stack">
+              <VlSegmentedControl
+                :model-value="themePreference"
+                :options="themeOpts"
+                variant="morph-grid"
+                :columns="3"
+                @select="(v, e) => setThemePreference(v, e)"
+              />
+              <VlSegmentedControl
+                :model-value="accentScheme"
+                :options="accentOpts"
+                variant="morph-grid"
+                :columns="2"
+                @select="(v, e) => setAccentScheme(v, e)"
+              />
 
-            <div class="set-lbl" style="margin-top: 8px">配色方案与莫奈 / Pride</div>
-            <VlPalettePicker compact />
-          </div>
-        </VlPanel>
+              <div class="set-lbl" style="margin-top: 8px">配色方案与莫奈 / Pride</div>
+              <VlPalettePicker compact />
+            </div>
+          </VlPanel>
+        </Transition>
       </div>
     </template>
 

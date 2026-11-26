@@ -46,10 +46,10 @@ const props = withDefaults(
 
 const timelineName = `--vl-pager-tl-${++pagerInstanceSeq}`
 
-const isCoarsePointer =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(pointer: coarse)').matches
+const isAppleTouchWebKit =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 
 const hasCssScrollTimeline =
   typeof CSS !== 'undefined' &&
@@ -57,7 +57,7 @@ const hasCssScrollTimeline =
   CSS.supports('animation-timeline: scroll()') &&
   CSS.supports('timeline-scope: --vl-t')
 
-const supportsScrollDriver = isCoarsePointer && hasCssScrollTimeline
+const supportsScrollDriver = isAppleTouchWebKit && hasCssScrollTimeline
 
 const driverRef = ref<HTMLElement | null>(null)
 const trackRef = ref<HTMLElement | null>(null)
@@ -197,19 +197,28 @@ watch(
 
       targetTravel = Math.max(currentDriver.scrollWidth - currentDriver.clientWidth, 1)
 
-      if (typeof currentDriver.scrollTo === 'function' && typeof requestAnimationFrame === 'function') {
-        rafId = requestAnimationFrame(() => {
-          rafId = null
+      if (typeof currentDriver.scrollTo === 'function') {
+        const launchSmoothScroll = () => {
           if (token !== transitionToken || !driverRef.value) return
           awaitingScrollEndToken = token
           driverRef.value.scrollTo({
             left: targetTravel,
             behavior: 'smooth',
           })
-        })
+        }
+
+        if (wasDriving && typeof requestAnimationFrame === 'function') {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
+            launchSmoothScroll()
+          })
+        } else {
+          launchSmoothScroll()
+        }
+
         settleTimer = setTimeout(() => {
           finishTransition(token)
-        }, 580)
+        }, 520)
       } else {
         finishTransition(token)
       }
@@ -361,7 +370,7 @@ onBeforeUnmount(() => {
 }
 
 .vl-pager-driver-spacer {
-  width: calc(100% + 360px);
+  width: calc(100% + 220px);
   height: 1px;
 }
 
@@ -376,7 +385,8 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-track-next;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: linear;
+  /* Compensates WebKit smooth-scroll ease-in-out envelope to closely track cubic-bezier(0.32, 0.72, 0, 1) */
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
 }
 
 .vl-pager-track.is-driving-scroll-prev {
@@ -384,17 +394,17 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-track-prev;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: linear;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
 }
 
 .vl-pager-track.is-driving-kf-next {
   will-change: transform;
-  animation: vl-pager-track-next-ease 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: vl-pager-track-next 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .vl-pager-track.is-driving-kf-prev {
   will-change: transform;
-  animation: vl-pager-track-prev-ease 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: vl-pager-track-prev 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .vl-snap-page {
@@ -427,26 +437,6 @@ onBeforeUnmount(() => {
 }
 
 @keyframes vl-pager-track-next {
-  0% {
-    transform: translate3d(0, 0, 0);
-    animation-timing-function: cubic-bezier(0.22, 0.85, 0.2, 1);
-  }
-  100% {
-    transform: translate3d(-100%, 0, 0);
-  }
-}
-
-@keyframes vl-pager-track-prev {
-  0% {
-    transform: translate3d(-100%, 0, 0);
-    animation-timing-function: cubic-bezier(0.22, 0.85, 0.2, 1);
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes vl-pager-track-next-ease {
   from {
     transform: translate3d(0, 0, 0);
   }
@@ -455,7 +445,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes vl-pager-track-prev-ease {
+@keyframes vl-pager-track-prev {
   from {
     transform: translate3d(-100%, 0, 0);
   }

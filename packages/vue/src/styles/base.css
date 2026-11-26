@@ -130,12 +130,12 @@ textarea:focus-visible {
                                    vl-slide-fade-h-next / vl-slide-fade-h-prev
    ========================================================================== */
 
-/* Preset 1: Seamless Horizontal Pure Slide (Edge-to-Edge Handoff, Zero Fade, Smooth 0-Slope Start) */
+/* Preset 1: Seamless Horizontal Pure Slide (Edge-to-Edge Handoff, iOS-grade Emphasized Deceleration Curve) */
 .vl-slide-h-next-enter-active,
 .vl-slide-h-next-leave-active,
 .vl-slide-h-prev-enter-active,
 .vl-slide-h-prev-leave-active {
-  transition: transform 0.36s var(--ease-standard);
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
 }
 

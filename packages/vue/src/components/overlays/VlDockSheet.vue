@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import VlButton from '../primitives/VlButton.vue'
 import type { IconName } from '../icons/iconRegistry'
@@ -62,7 +62,11 @@ const emit = defineEmits<{
 const hostHeight = ref(760)
 const hostWidth = ref(390)
 const sheetRef = ref<HTMLElement | null>(null)
+const nativeScrollerRef = ref<HTMLElement | null>(null)
 const scrollAreaRef = ref<InstanceType<typeof VlScrollArea> | null>(null)
+const isNativeTouchScroll = ref(false)
+const nativeSheetMounted = ref(false)
+const nativeScrollTop = ref(0)
 const isDragging = ref(false)
 const navPressed = ref(false)
 const navFollow = ref({ x: 0, y: 0, dragging: false })
@@ -79,6 +83,18 @@ let bodyStartX = 0
 let bodyStartY = 0
 let bodyPullActive = false
 let bodyLockedAsInnerScroll = false
+let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
+let nativeProgrammaticDetent: DockSheetDetent | null = null
+let pendingDragOpenScrollTop: number | null = null
+let coarseMql: MediaQueryList | null = null
+
+function updatePointerMode() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    isNativeTouchScroll.value = false
+    return
+  }
+  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
+}
 
 const hasNav = computed(() => Boolean(props.navItems && props.navItems.length > 0))
 
@@ -98,7 +114,8 @@ const dockRadius = computed(() =>
 )
 
 function measureHost() {
-  const parent = sheetRef.value?.parentElement
+  const parent =
+    nativeScrollerRef.value?.parentElement ?? sheetRef.value?.parentElement
   if (parent && parent.clientHeight > 0) {
     hostHeight.value = parent.clientHeight
     if (parent.clientWidth > 0) hostWidth.value = parent.clientWidth
@@ -115,6 +132,15 @@ const halfSheetHeight = computed(() =>
   Math.max(effectiveDockedHeight.value + 120, Math.round(hostHeight.value * props.halfRatio)),
 )
 
+const nativeHalfOffset = computed(() => Math.max(1, halfSheetHeight.value - effectiveDockedHeight.value))
+const nativeFullOffset = computed(() => Math.max(2, fullSheetHeight.value - effectiveDockedHeight.value))
+
+function getNativeDetentTop(detent: DockSheetDetent): number {
+  if (detent === 'docked') return 0
+  if (detent === 'half') return nativeHalfOffset.value
+  return nativeFullOffset.value
+}
+
 function getDetentHeight(detent: DockSheetDetent): number {
   if (detent === 'docked') return effectiveDockedHeight.value
   if (detent === 'half') return halfSheetHeight.value
@@ -122,6 +148,9 @@ function getDetentHeight(detent: DockSheetDetent): number {
 }
 
 const currentHeight = computed(() => {
+  if (nativeSheetMounted.value) {
+    return effectiveDockedHeight.value + nativeScrollTop.value
+  }
   if (isDragging.value && dragHeight.value !== null) {
     return dragHeight.value
   }
@@ -299,7 +328,11 @@ function onPointerUp() {
   if (!movedBeyondTap) return
 
   if (velocityY < -0.45) {
-    setDetent(props.detent === 'docked' ? 'half' : 'full')
+    const next = props.detent === 'docked' ? 'half' : 'full'
+    if (isNativeTouchScroll.value && props.detent === 'docked') {
+      pendingDragOpenScrollTop = Math.max(0, finalH - effectiveDockedHeight.value)
+    }
+    setDetent(next)
     return
   }
   if (velocityY > 0.45) {
@@ -314,7 +347,12 @@ function onPointerUp() {
   ]
   candidates.sort((a, b) => a.dist - b.dist)
   const best = candidates[0]
-  if (best) setDetent(best.detent)
+  if (best) {
+    if (isNativeTouchScroll.value && props.detent === 'docked' && best.detent !== 'docked') {
+      pendingDragOpenScrollTop = Math.max(0, finalH - effectiveDockedHeight.value)
+    }
+    setDetent(best.detent)
+  }
 }
 
 function onBodyTouchStart(e: TouchEvent) {
@@ -391,16 +429,137 @@ function cycleDetent(e: MouseEvent) {
   else setDetent('half')
 }
 
+function scrollNativeToDetent(target: DockSheetDetent, instant: boolean) {
+  const scroller = nativeScrollerRef.value
+  if (!scroller) {
+    if (target === 'docked') nativeSheetMounted.value = false
+    return
+  }
+  const dest = getNativeDetentTop(target)
+  if (instant) {
+    nativeProgrammaticDetent = null
+    scroller.scrollTop = dest
+    nativeScrollTop.value = dest
+    if (target === 'docked') nativeSheetMounted.value = false
+    return
+  }
+  if (Math.abs(scroller.scrollTop - dest) < 2) {
+    nativeScrollTop.value = dest
+    nativeProgrammaticDetent = null
+    if (target === 'docked') nativeSheetMounted.value = false
+    return
+  }
+  nativeProgrammaticDetent = target
+  if (typeof scroller.scrollTo === 'function') {
+    scroller.scrollTo({ top: dest, behavior: 'smooth' })
+  } else {
+    scroller.scrollTop = dest
+  }
+  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 440)
+}
+
+function finalizeNativeScroll() {
+  if (nativeSettleTimer !== null) {
+    clearTimeout(nativeSettleTimer)
+    nativeSettleTimer = null
+  }
+  isDragging.value = false
+  const scroller = nativeScrollerRef.value
+  if (!scroller || !nativeSheetMounted.value) return
+  const top = Math.max(0, Math.min(nativeFullOffset.value, scroller.scrollTop))
+  nativeScrollTop.value = top
+
+  if (nativeProgrammaticDetent !== null) {
+    const target = nativeProgrammaticDetent
+    nativeProgrammaticDetent = null
+    if (target === 'docked' && props.detent === 'docked') {
+      nativeSheetMounted.value = false
+    }
+    return
+  }
+
+  const candidates: { detent: DockSheetDetent; dist: number }[] = [
+    { detent: 'docked', dist: Math.abs(top - 0) },
+    { detent: 'half', dist: Math.abs(top - nativeHalfOffset.value) },
+    { detent: 'full', dist: Math.abs(top - nativeFullOffset.value) },
+  ]
+  candidates.sort((a, b) => a.dist - b.dist)
+  const best = candidates[0]
+  if (best) {
+    if (best.detent === 'docked') {
+      nativeSheetMounted.value = false
+    }
+    if (best.detent !== props.detent) {
+      setDetent(best.detent)
+    }
+  }
+}
+
+function onNativeScroll() {
+  const scroller = nativeScrollerRef.value
+  if (!scroller || !nativeSheetMounted.value) return
+  nativeScrollTop.value = Math.max(0, Math.min(nativeFullOffset.value, scroller.scrollTop))
+  if (nativeProgrammaticDetent === null) {
+    isDragging.value = true
+  }
+  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
+}
+
+watch(
+  () => props.detent,
+  async (next) => {
+    if (!isNativeTouchScroll.value) return
+    if (next !== 'docked') {
+      const wasMounted = nativeSheetMounted.value
+      const startTop = pendingDragOpenScrollTop ?? 0
+      pendingDragOpenScrollTop = null
+      if (!wasMounted) {
+        measureHost()
+        nativeSheetMounted.value = true
+        nativeScrollTop.value = startTop
+        await nextTick()
+        const scroller = nativeScrollerRef.value
+        if (scroller) scroller.scrollTop = startTop
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => scrollNativeToDetent(next, false))
+        } else {
+          scrollNativeToDetent(next, false)
+        }
+      } else {
+        scrollNativeToDetent(next, false)
+      }
+    } else if (nativeSheetMounted.value) {
+      scrollNativeToDetent('docked', false)
+    }
+  },
+)
+
 onMounted(() => {
+  updatePointerMode()
   measureHost()
-  const parent = sheetRef.value?.parentElement
+  if (isNativeTouchScroll.value && props.detent !== 'docked') {
+    nativeSheetMounted.value = true
+    nextTick(() => scrollNativeToDetent(props.detent, true))
+  }
+  const parent = sheetRef.value?.parentElement ?? nativeScrollerRef.value?.parentElement
   if (typeof ResizeObserver !== 'undefined' && parent) {
     resizeObserver = new ResizeObserver(measureHost)
     resizeObserver.observe(parent)
   }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    coarseMql = window.matchMedia('(pointer: coarse)')
+    coarseMql.addEventListener?.('change', updatePointerMode)
+  }
 })
 
 onBeforeUnmount(() => {
+  if (nativeSettleTimer !== null) {
+    clearTimeout(nativeSettleTimer)
+    nativeSettleTimer = null
+  }
+  coarseMql?.removeEventListener?.('change', updatePointerMode)
   resizeObserver?.disconnect()
   cleanupListeners()
 })
@@ -409,12 +568,105 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="vl-dock-sheet-scrim"
-    :class="{ active: expandRatio > 0.02, dragging: isDragging }"
+    :class="{ active: expandRatio > 0.02 && !nativeSheetMounted, dragging: isDragging }"
     :style="{ opacity: expandRatio * 0.36 }"
     @click="setDetent('docked')"
   />
 
+  <!-- ==================== EXPANDED NATIVE 120Hz SCROLL-SNAP OVERLAY (TOUCH / iOS SAFARI) ==================== -->
+  <div
+    v-if="nativeSheetMounted"
+    ref="nativeScrollerRef"
+    class="vl-dock-native-scroller"
+    @scroll.passive="onNativeScroll"
+    @scrollend="finalizeNativeScroll"
+  >
+    <div
+      class="vl-dock-native-track"
+      :style="{ minHeight: `${hostHeight + nativeFullOffset}px` }"
+    >
+      <div class="vl-dock-snap-anchor" style="top: 0px" aria-hidden="true" />
+      <div class="vl-dock-snap-anchor" :style="{ top: `${nativeHalfOffset}px` }" aria-hidden="true" />
+      <div class="vl-dock-snap-anchor" :style="{ top: `${nativeFullOffset}px` }" aria-hidden="true" />
+
+      <div
+        class="vl-dock-native-backdrop-spacer"
+        :style="{ height: `${Math.max(0, hostHeight - effectiveDockedHeight)}px` }"
+        @click="setDetent('docked')"
+      />
+
+      <section
+        class="vl-dock-sheet expanded native-expanded"
+        :class="{ unified: hasNav, dragging: isDragging }"
+        :style="{ height: `${fullSheetHeight}px` }"
+        :aria-label="ariaLabel"
+      >
+        <div
+          class="vl-dock-header native-scroll"
+          :style="{
+            height: `${hasNav ? peekHeight : dockHeight}px`,
+            minHeight: `${hasNav ? peekHeight : dockHeight}px`,
+          }"
+          @click="handleHeaderClick"
+        >
+          <div class="vl-handle-zone" aria-hidden="true">
+            <span class="vl-sheet-handle" :class="{ active: isDragging, unified: hasNav }" />
+          </div>
+
+          <div class="vl-dock-bar-row">
+            <div class="vl-dock-left">
+              <slot name="dock-left">
+                <span class="vl-dock-icon active" :class="{ 'is-circle': hasNav }">
+                  <VlIcon :name="icon" :size="hasNav ? 15 : 14" />
+                </span>
+                <span class="vl-dock-title">{{ title }}</span>
+                <span v-if="badge" class="vl-dock-badge shape-pill">{{ badge }}</span>
+              </slot>
+            </div>
+
+            <div class="vl-dock-right">
+              <slot name="dock-right" />
+              <VlButton
+                size="xs"
+                shape="pill"
+                variant="primary"
+                class="vl-dock-action-pill expanded"
+                :title="detent === 'half' ? '全屏展开' : '收起'"
+                @click="cycleDetent"
+              >
+                {{ detent === 'half' ? '全屏' : '收起' }}
+              </VlButton>
+            </div>
+          </div>
+        </div>
+
+        <VlScrollArea class="vl-dock-scroll native-chain">
+          <slot />
+        </VlScrollArea>
+
+        <div
+          v-if="hasNav"
+          class="vl-dock-nav-slot native-sticky"
+          :style="{ '--dock-capsule-height': `${effectiveNavHeight}px` }"
+        >
+          <VlBottomDock
+            embedded
+            :model-value="activeNav ?? navItems![0]?.id ?? ''"
+            :items="navItems!"
+            variant="capsule"
+            aria-label="底部导航"
+            @update:model-value="handleNavSelect"
+            @press-change="navPressed = $event"
+            @drag-follow="navFollow = $event"
+          />
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ==================== DOCKED FLOATING PILL (AND DESKTOP SHEET) ==================== -->
   <section
+    v-if="!nativeSheetMounted"
     ref="sheetRef"
     class="vl-dock-sheet"
     :class="{
@@ -520,6 +772,75 @@ onBeforeUnmount(() => {
 
 .vl-dock-sheet-scrim.dragging {
   transition: none;
+}
+
+.vl-dock-native-scroller {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+
+.vl-dock-native-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.vl-dock-native-track {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.vl-dock-snap-anchor {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  pointer-events: none;
+}
+
+.vl-dock-native-backdrop-spacer {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.vl-dock-sheet.native-expanded {
+  position: relative;
+  left: 0;
+  right: 0;
+  bottom: auto;
+  z-index: auto;
+  width: 100%;
+  border-radius: 0px;
+  flex-shrink: 0;
+  touch-action: pan-y;
+  transition: none;
+}
+
+.vl-dock-header.native-scroll {
+  touch-action: pan-y;
+}
+
+.vl-dock-scroll.native-chain :deep(.csa-viewport) {
+  overscroll-behavior-y: auto;
+}
+
+.vl-dock-nav-slot.native-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  border-top: 1px solid var(--divider-hairline);
+  max-width: calc(var(--dock-floating-max-width, 380px) + 24px);
+  padding: 6px 18px calc(6px + var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px))) 18px;
 }
 
 .vl-dock-sheet {

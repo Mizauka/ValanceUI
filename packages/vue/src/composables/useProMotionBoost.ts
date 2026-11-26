@@ -94,9 +94,10 @@ export function installProMotionBoost(): () => void {
   const wake = () => {
     mountHost()
     clearRelease()
+    if (!mark.isConnected) host.appendChild(mark)
+    pace(typeof performance !== 'undefined' ? performance.now() : Date.now())
     if (active) return
     active = true
-    if (!mark.isConnected) host.appendChild(mark)
     rafId = window.requestAnimationFrame(tick)
   }
 

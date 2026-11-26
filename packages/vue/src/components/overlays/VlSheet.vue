@@ -656,7 +656,7 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-snap-type: y mandatory;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: none;
 }
 
 .vl-sheet-native-scroller.place-left,
@@ -665,7 +665,7 @@ onBeforeUnmount(() => {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: none;
 }
 
 .vl-sheet-snap-dismiss {

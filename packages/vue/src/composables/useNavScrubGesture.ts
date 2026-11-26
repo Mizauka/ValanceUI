@@ -383,20 +383,36 @@ export function useNavScrubGesture(options: NavScrubGestureOptions) {
     if (activePointerId === null || e.pointerId !== activePointerId) return
     const wasDragging = dragging.value && movedPrimary
     const finalIdx = hoverIndex.value
-    resetState()
+    const container = options.getContainer()
 
-    if (wasDragging) {
+    // Check if a clean short tap ended near the container so we can commit synchronously on pointerup
+    // (eliminates the pointerup -> reset to old tab -> click -> jump to new tab reversal twitch on touch!)
+    let shouldCommitTap = false
+    if (!wasDragging && finalIdx !== null && container) {
+      const rect = container.getBoundingClientRect()
+      const pad = 20
+      const inside =
+        e.clientX >= rect.left - pad &&
+        e.clientX <= rect.right + pad &&
+        e.clientY >= rect.top - pad &&
+        e.clientY <= rect.bottom + pad
+      shouldCommitTap = inside
+    }
+
+    if ((wasDragging || shouldCommitTap) && finalIdx !== null) {
       suppressClickFlag = true
       if (suppressTimer !== null) clearTimeout(suppressTimer)
       suppressTimer = setTimeout(() => {
         suppressClickFlag = false
         suppressTimer = null
-      }, 0)
+      }, 320)
 
-      if (finalIdx !== null) {
-        options.onCommit(finalIdx, e)
-      }
+      // Commit BEFORE resetState() so the host component can synchronously update its resting
+      // indicator position in the same frame — zero snap-back flash!
+      options.onCommit(finalIdx, e)
     }
+
+    resetState()
   }
 
   function onWindowCancel(e: PointerEvent) {

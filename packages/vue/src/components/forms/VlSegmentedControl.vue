@@ -65,6 +65,11 @@ const {
   onCommit: (idx, ev) => {
     const opt = props.options[idx]
     if (!opt) return
+    const btn = btnRefs.value[idx] ?? null
+    if (btn) {
+      indicatorX.value = btn.offsetLeft
+      indicatorW.value = btn.offsetWidth
+    }
     animate.value = true
     emit('select', opt.value, ev as unknown as MouseEvent)
     if (opt.value !== props.modelValue) {
@@ -144,7 +149,12 @@ onMounted(() => {
   nextTick(() => {
     measureIndicator(false)
     if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => measureIndicator(false))
+      requestAnimationFrame(() => {
+        measureIndicator(false)
+        if (ready.value) animate.value = true
+      })
+    } else if (ready.value) {
+      animate.value = true
     }
   })
   if (typeof ResizeObserver !== 'undefined' && trackRef.value) {
@@ -171,7 +181,11 @@ onBeforeUnmount(() => {
     <span
       v-show="ready && indicatorW > 0"
       class="vl-seg-indicator"
-      :class="{ animated: animate && !scrubDragging, dragging: scrubDragging }"
+      :class="{
+        animated: (animate || (scrubPressed && pressTargetPos !== null)) && !scrubDragging,
+        pressed: scrubPressed,
+        dragging: scrubDragging,
+      }"
       :style="indicatorStyle"
       aria-hidden="true"
     />
@@ -309,7 +323,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 0;
   background-color: transparent;
-  transition: color 0.14s var(--ease-decel);
+  transition: color 0.14s var(--ease-standard) 0.04s;
 }
 
 .vl-seg-item:focus-visible {
@@ -344,6 +358,12 @@ onBeforeUnmount(() => {
 
 .vl-seg-item.active {
   color: var(--accent-primary-ink);
+  transition: color 0.14s var(--ease-standard) 0.12s;
+}
+
+.vl-seg-track.dragging .vl-seg-item,
+.vl-seg-track.dragging .vl-seg-item.active {
+  transition: color 0.06s linear 0s;
 }
 
 /* Morph Grid Variant */

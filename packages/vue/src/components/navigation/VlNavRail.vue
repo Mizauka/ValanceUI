@@ -69,6 +69,12 @@ const {
   onCommit: (idx) => {
     const item = props.items[idx]
     if (!item || item.id === props.modelValue) return
+    const list = props.variant === 'capsule' ? capsuleItemRefs.value : barItemRefs.value
+    const btn = list[idx] ?? null
+    if (btn) {
+      indY.value = btn.offsetTop
+      indH.value = btn.offsetHeight
+    }
     animated.value = true
     emit('update:modelValue', item.id)
   },
@@ -175,7 +181,12 @@ onMounted(() => {
   nextTick(() => {
     measure(false)
     if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => measure(false))
+      requestAnimationFrame(() => {
+        measure(false)
+        if (ready.value) animated.value = true
+      })
+    } else if (ready.value) {
+      animated.value = true
     }
   })
   const host = capsuleRef.value ?? barRef.value
@@ -394,7 +405,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 4px;
   color: var(--text-secondary);
-  transition: color 0.12s var(--ease-decel);
+  transition: color 0.14s var(--ease-standard) 0.04s;
 }
 
 .vl-rail-tab:focus-visible {
@@ -403,6 +414,12 @@ onBeforeUnmount(() => {
 
 .vl-rail-tab.active {
   color: var(--accent-primary-ink);
+  transition: color 0.14s var(--ease-standard) 0.13s;
+}
+
+.vl-nav-rail-capsule.dragging .vl-rail-tab,
+.vl-nav-rail-capsule.dragging .vl-rail-tab.active {
+  transition: color 0.06s linear 0s;
 }
 
 .vl-rail-icon-wrap {

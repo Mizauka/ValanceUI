@@ -69,6 +69,12 @@ const {
   onCommit: (idx) => {
     const item = props.items[idx]
     if (!item || item.id === props.modelValue) return
+    const list = props.variant === 'capsule' ? itemRefs.value : barItemRefs.value
+    const btn = list[idx] ?? null
+    if (btn) {
+      indX.value = btn.offsetLeft
+      indW.value = btn.offsetWidth
+    }
     animated.value = true
     emit('update:modelValue', item.id)
   },
@@ -200,7 +206,12 @@ onMounted(() => {
   nextTick(() => {
     measure(false)
     if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => measure(false))
+      requestAnimationFrame(() => {
+        measure(false)
+        if (ready.value) animated.value = true
+      })
+    } else if (ready.value) {
+      animated.value = true
     }
   })
   observeContainer()
@@ -432,7 +443,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 3px;
   color: var(--text-secondary);
-  transition: color 0.12s var(--ease-decel);
+  transition: color 0.14s var(--ease-standard) 0.04s;
 }
 
 .vl-dock-tab:focus-visible {
@@ -441,6 +452,12 @@ onBeforeUnmount(() => {
 
 .vl-dock-tab.active {
   color: var(--accent-primary-ink);
+  transition: color 0.14s var(--ease-standard) 0.13s;
+}
+
+.vl-dock-capsule.dragging .vl-dock-tab,
+.vl-dock-capsule.dragging .vl-dock-tab.active {
+  transition: color 0.06s linear 0s;
 }
 
 .vl-dock-icon-wrap {

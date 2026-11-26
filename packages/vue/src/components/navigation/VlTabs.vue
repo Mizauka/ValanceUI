@@ -56,6 +56,11 @@ const {
   onCommit: (idx) => {
     const item = props.items[idx]
     if (!item || item.value === props.modelValue) return
+    const el = tabRefs.value[idx] ?? null
+    if (el) {
+      barX.value = el.offsetLeft
+      barW.value = el.offsetWidth
+    }
     animated.value = true
     emit('update:modelValue', item.value)
   },
@@ -128,7 +133,12 @@ onMounted(() => {
   nextTick(() => {
     measureBar(false)
     if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => measureBar(false))
+      requestAnimationFrame(() => {
+        measureBar(false)
+        if (ready.value) animated.value = true
+      })
+    } else if (ready.value) {
+      animated.value = true
     }
   })
   if (typeof ResizeObserver !== 'undefined' && trackRef.value) {
@@ -148,7 +158,14 @@ onBeforeUnmount(() => {
       <span
         v-show="ready && barW > 0"
         class="vl-tabs-indicator"
-        :class="[`t-${tone}`, { animated: animated && !scrubDragging, dragging: scrubDragging }]"
+        :class="[
+          `t-${tone}`,
+          {
+            animated: (animated || (scrubPressed && pressTargetPos !== null)) && !scrubDragging,
+            pressed: scrubPressed,
+            dragging: scrubDragging,
+          },
+        ]"
         :style="indicatorStyle"
         aria-hidden="true"
       />
@@ -259,7 +276,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: var(--text-muted);
   white-space: nowrap;
-  transition: color 0.18s var(--ease-standard);
+  transition: color 0.14s var(--ease-standard) 0.04s;
 }
 
 .vl-header-tab:focus-visible {
@@ -274,6 +291,12 @@ onBeforeUnmount(() => {
 .vl-header-tab.active {
   color: var(--text-primary);
   font-weight: 800;
+  transition: color 0.14s var(--ease-standard) 0.11s;
+}
+
+.vl-tabs-items.dragging .vl-header-tab,
+.vl-tabs-items.dragging .vl-header-tab.active {
+  transition: color 0.06s linear 0s;
 }
 
 .vl-tab-count {

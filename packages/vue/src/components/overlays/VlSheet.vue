@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
@@ -34,6 +34,10 @@ const emit = defineEmits<{
 }>()
 
 const sheetRef = ref<HTMLElement | null>(null)
+const nativeScrollerRef = ref<HTMLElement | null>(null)
+const isNativeTouchScroll = ref(false)
+const nativeMounted = ref(props.open)
+const nativeBackdropRatio = ref(props.open ? 1 : 0)
 const isDragging = ref(false)
 const dismissing = ref(false)
 const dragOffsetX = ref(0)
@@ -48,6 +52,124 @@ let dragVelocityX = 0
 let dragVelocityY = 0
 let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
+let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
+let nativeProgrammaticTarget: 'open' | 'close' | null = null
+let coarseMql: MediaQueryList | null = null
+
+function updatePointerMode() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    isNativeTouchScroll.value = false
+    return
+  }
+  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
+}
+
+function getNativeMetrics() {
+  const scroller = nativeScrollerRef.value
+  if (!scroller) return null
+  if (props.placement === 'bottom') {
+    const max = Math.max(1, scroller.scrollHeight - scroller.clientHeight)
+    return {
+      axis: 'top' as const,
+      current: scroller.scrollTop,
+      openPos: max,
+      closePos: 0,
+      ratio: Math.max(0, Math.min(1, scroller.scrollTop / max)),
+    }
+  }
+  const max = Math.max(1, scroller.scrollWidth - scroller.clientWidth)
+  if (props.placement === 'left') {
+    return {
+      axis: 'left' as const,
+      current: scroller.scrollLeft,
+      openPos: 0,
+      closePos: max,
+      ratio: Math.max(0, Math.min(1, 1 - scroller.scrollLeft / max)),
+    }
+  }
+  return {
+    axis: 'left' as const,
+    current: scroller.scrollLeft,
+    openPos: max,
+    closePos: 0,
+    ratio: Math.max(0, Math.min(1, scroller.scrollLeft / max)),
+  }
+}
+
+function setNativeScrollInstant(pos: number) {
+  const scroller = nativeScrollerRef.value
+  if (!scroller) return
+  if (props.placement === 'bottom') scroller.scrollTop = pos
+  else scroller.scrollLeft = pos
+}
+
+function scrollNativeSmooth(target: 'open' | 'close') {
+  const scroller = nativeScrollerRef.value
+  const m = getNativeMetrics()
+  if (!scroller || !m) {
+    if (target === 'close') nativeMounted.value = false
+    return
+  }
+  const dest = target === 'open' ? m.openPos : m.closePos
+  if (Math.abs(m.current - dest) < 2) {
+    nativeBackdropRatio.value = target === 'open' ? 1 : 0
+    if (target === 'close') nativeMounted.value = false
+    nativeProgrammaticTarget = null
+    return
+  }
+  nativeProgrammaticTarget = target
+  if (typeof scroller.scrollTo === 'function') {
+    scroller.scrollTo(m.axis === 'top' ? { top: dest, behavior: 'smooth' } : { left: dest, behavior: 'smooth' })
+  } else {
+    setNativeScrollInstant(dest)
+  }
+  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 420)
+}
+
+function finalizeNativeScroll() {
+  if (nativeSettleTimer !== null) {
+    clearTimeout(nativeSettleTimer)
+    nativeSettleTimer = null
+  }
+  isDragging.value = false
+  const m = getNativeMetrics()
+  if (!m) return
+  nativeBackdropRatio.value = m.ratio
+
+  if (nativeProgrammaticTarget === 'close') {
+    nativeProgrammaticTarget = null
+    if (!props.open) nativeMounted.value = false
+    return
+  }
+  if (nativeProgrammaticTarget === 'open') {
+    nativeProgrammaticTarget = null
+    return
+  }
+
+  if (m.ratio < 0.45 && props.open) {
+    nativeMounted.value = false
+    close()
+  }
+}
+
+function onNativeScroll() {
+  const m = getNativeMetrics()
+  if (!m) return
+  nativeBackdropRatio.value = m.ratio
+  if (nativeProgrammaticTarget === null) {
+    isDragging.value = true
+  }
+  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
+}
+
+function onNativeBackdropClick(e: MouseEvent) {
+  if (!props.closeOnBackdrop) return
+  if (e.target === e.currentTarget) {
+    close()
+  }
+}
 
 function clearActiveAnim() {
   activeAnimCleanup?.()
@@ -76,13 +198,27 @@ useBackHandler(
 
 watch(
   () => props.open,
-  (isOpen) => {
+  async (isOpen) => {
     if (isOpen) {
       dismissing.value = false
       dismissFromOffset = null
       isDragging.value = false
       dragOffsetX.value = 0
       dragOffsetY.value = 0
+      if (isNativeTouchScroll.value) {
+        nativeMounted.value = true
+        nativeBackdropRatio.value = 0
+        await nextTick()
+        const m = getNativeMetrics()
+        if (m) setNativeScrollInstant(m.closePos)
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => scrollNativeSmooth('open'))
+        } else {
+          scrollNativeSmooth('open')
+        }
+      }
+    } else if (isNativeTouchScroll.value && nativeMounted.value) {
+      scrollNativeSmooth('close')
     }
   },
 )
@@ -283,14 +419,34 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  updatePointerMode()
+  if (isNativeTouchScroll.value && props.open) {
+    nativeMounted.value = true
+    nextTick(() => {
+      const m = getNativeMetrics()
+      if (m) {
+        setNativeScrollInstant(m.openPos)
+        nativeBackdropRatio.value = 1
+      }
+    })
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', onKeydown)
+    if (typeof window.matchMedia === 'function') {
+      coarseMql = window.matchMedia('(pointer: coarse)')
+      coarseMql.addEventListener?.('change', updatePointerMode)
+    }
   }
 })
 
 onBeforeUnmount(() => {
   clearActiveAnim()
   cleanupDrag()
+  if (nativeSettleTimer !== null) {
+    clearTimeout(nativeSettleTimer)
+    nativeSettleTimer = null
+  }
+  coarseMql?.removeEventListener?.('change', updatePointerMode)
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onKeydown)
   }
@@ -298,77 +454,167 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Transition name="sheet-backdrop">
+  <!-- ==================== NATIVE 120Hz SCROLL-SNAP SHEET (TOUCH / SAFARI PROMOTION) ==================== -->
+  <template v-if="isNativeTouchScroll">
     <div
-      v-if="open"
-      class="vl-sheet-backdrop shape-rect"
+      v-if="nativeMounted"
+      class="vl-sheet-backdrop shape-rect native-scroll"
       :class="{ contained }"
-      @click="closeOnBackdrop && close()"
+      :style="{ opacity: nativeBackdropRatio }"
+      aria-hidden="true"
     />
-  </Transition>
 
-  <Transition
-    :css="false"
-    @before-enter="onBeforeEnter"
-    @enter="onEnter"
-    @after-enter="onAfterEnter"
-    @enter-cancelled="onAnimCancel"
-    @before-leave="onBeforeLeave"
-    @leave="onLeave"
-    @after-leave="onAfterLeave"
-    @leave-cancelled="onAnimCancel"
-  >
-    <section
-      v-if="open"
-      ref="sheetRef"
-      class="vl-sheet shape-rect"
-      :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
-      :style="sheetDynamicStyle"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="title"
+    <div
+      v-if="nativeMounted"
+      ref="nativeScrollerRef"
+      class="vl-sheet-native-scroller"
+      :class="[`place-${placement}`, { contained }]"
+      @scroll.passive="onNativeScroll"
+      @scrollend="finalizeNativeScroll"
     >
+      <!-- Dismiss snap stop BEFORE sheet for bottom / right placements -->
       <div
-        class="vl-sheet-head shape-rect"
-        @pointerdown="onHandlePointerDown"
+        v-if="placement !== 'left'"
+        class="vl-sheet-snap-dismiss"
+        @click="onNativeBackdropClick"
+      />
+
+      <!-- Present snap stop holding the actual sheet -->
+      <div
+        class="vl-sheet-snap-present"
+        :class="`place-${placement}`"
+        @click="onNativeBackdropClick"
       >
-        <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
-          <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
-        </div>
+        <section
+          ref="sheetRef"
+          class="vl-sheet shape-rect native-scroll"
+          :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
+          :style="sheetDynamicStyle"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title"
+        >
+          <div class="vl-sheet-head shape-rect native-scroll">
+            <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
+              <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
+            </div>
 
-        <div class="vl-sheet-title-row">
-          <div class="vl-sheet-title-left">
-            <span class="vl-sheet-accent shape-rect" />
-            <h2 class="vl-sheet-title">{{ title }}</h2>
+            <div class="vl-sheet-title-row">
+              <div class="vl-sheet-title-left">
+                <span class="vl-sheet-accent shape-rect" />
+                <h2 class="vl-sheet-title">{{ title }}</h2>
+              </div>
+
+              <div class="vl-sheet-title-right">
+                <slot name="header-extra" />
+                <VlIconButton
+                  icon="close"
+                  size="sm"
+                  morph-on-hover
+                  title="关闭"
+                  aria-label="关闭"
+                  class="vl-sheet-close-btn"
+                  @click="close"
+                />
+              </div>
+            </div>
           </div>
 
-          <div class="vl-sheet-title-right">
-            <slot name="header-extra" />
-            <VlIconButton
-              icon="close"
-              size="sm"
-              morph-on-hover
-              title="关闭"
-              aria-label="关闭"
-              class="vl-sheet-close-btn"
-              @pointerdown.stop
-              @click="close"
-            />
-          </div>
-        </div>
+          <VlScrollArea class="vl-sheet-scroll">
+            <div class="vl-sheet-body">
+              <slot />
+            </div>
+          </VlScrollArea>
+
+          <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
+            <slot name="footer" />
+          </footer>
+        </section>
       </div>
 
-      <VlScrollArea class="vl-sheet-scroll">
-        <div class="vl-sheet-body">
-          <slot />
-        </div>
-      </VlScrollArea>
+      <!-- Dismiss snap stop AFTER sheet for left placement -->
+      <div
+        v-if="placement === 'left'"
+        class="vl-sheet-snap-dismiss"
+        @click="onNativeBackdropClick"
+      />
+    </div>
+  </template>
 
-      <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
-        <slot name="footer" />
-      </footer>
-    </section>
-  </Transition>
+  <!-- ==================== DESKTOP / FINE-POINTER SHEET ==================== -->
+  <template v-else>
+    <Transition name="sheet-backdrop">
+      <div
+        v-if="open"
+        class="vl-sheet-backdrop shape-rect"
+        :class="{ contained }"
+        @click="closeOnBackdrop && close()"
+      />
+    </Transition>
+
+    <Transition
+      :css="false"
+      @before-enter="onBeforeEnter"
+      @enter="onEnter"
+      @after-enter="onAfterEnter"
+      @enter-cancelled="onAnimCancel"
+      @before-leave="onBeforeLeave"
+      @leave="onLeave"
+      @after-leave="onAfterLeave"
+      @leave-cancelled="onAnimCancel"
+    >
+      <section
+        v-if="open"
+        ref="sheetRef"
+        class="vl-sheet shape-rect"
+        :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
+        :style="sheetDynamicStyle"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+      >
+        <div
+          class="vl-sheet-head shape-rect"
+          @pointerdown="onHandlePointerDown"
+        >
+          <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
+            <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
+          </div>
+
+          <div class="vl-sheet-title-row">
+            <div class="vl-sheet-title-left">
+              <span class="vl-sheet-accent shape-rect" />
+              <h2 class="vl-sheet-title">{{ title }}</h2>
+            </div>
+
+            <div class="vl-sheet-title-right">
+              <slot name="header-extra" />
+              <VlIconButton
+                icon="close"
+                size="sm"
+                morph-on-hover
+                title="关闭"
+                aria-label="关闭"
+                class="vl-sheet-close-btn"
+                @pointerdown.stop
+                @click="close"
+              />
+            </div>
+          </div>
+        </div>
+
+        <VlScrollArea class="vl-sheet-scroll">
+          <div class="vl-sheet-body">
+            <slot />
+          </div>
+        </VlScrollArea>
+
+        <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
+          <slot name="footer" />
+        </footer>
+      </section>
+    </Transition>
+  </template>
 </template>
 
 <style scoped>
@@ -383,6 +629,77 @@ onBeforeUnmount(() => {
   position: absolute;
 }
 
+.vl-sheet-backdrop.native-scroll {
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.vl-sheet-native-scroller {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vl-sheet-native-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.vl-sheet-native-scroller.contained {
+  position: absolute;
+}
+
+.vl-sheet-native-scroller.place-bottom {
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+}
+
+.vl-sheet-native-scroller.place-left,
+.vl-sheet-native-scroller.place-right {
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+
+.vl-sheet-snap-dismiss {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.vl-sheet-snap-present {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.vl-sheet-snap-present.place-bottom {
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.vl-sheet-snap-present.place-left {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.vl-sheet-snap-present.place-right {
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
 .vl-sheet {
   position: fixed;
   z-index: 65;
@@ -391,6 +708,29 @@ onBeforeUnmount(() => {
   background-color: var(--bg-base);
   overflow: hidden;
   transition: transform 0.36s var(--ease-standard);
+}
+
+.vl-sheet.native-scroll {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  z-index: auto;
+  transition: none;
+}
+
+.vl-sheet.native-scroll.place-bottom {
+  width: 100%;
+}
+
+.vl-sheet.native-scroll.place-left,
+.vl-sheet.native-scroll.place-right {
+  height: 100%;
+}
+
+.vl-sheet-head.native-scroll {
+  touch-action: pan-x pan-y;
 }
 
 .vl-sheet.contained {

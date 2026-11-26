@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Expandable Sheet Body -->
-    <VlScrollArea class="vl-dock-scroll" :style="{ opacity: morphFactor }">
+    <VlScrollArea v-show="expandRatio > 0.01" class="vl-dock-scroll" :style="{ opacity: morphFactor }">
       <slot />
     </VlScrollArea>
 
@@ -456,18 +456,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  contain: layout style;
   background-color: var(--bg-surface);
   border: 1px solid var(--divider-hairline);
   transform-origin: center bottom;
+  will-change: transform, height;
   transition:
-    height 0.42s var(--ease-emphasized-decel),
-    left 0.42s var(--ease-emphasized-decel),
-    right 0.42s var(--ease-emphasized-decel),
-    bottom 0.42s var(--ease-emphasized-decel),
-    padding-bottom 0.42s var(--ease-emphasized-decel),
-    border-radius 0.42s var(--ease-emphasized-decel),
-    transform 0.32s var(--ease-standard),
-    background-color 0.26s var(--ease-standard);
+    height 0.34s var(--ease-standard),
+    left 0.34s var(--ease-standard),
+    right 0.34s var(--ease-standard),
+    bottom 0.34s var(--ease-standard),
+    border-radius 0.34s var(--ease-standard),
+    transform 0.3s var(--ease-standard),
+    background-color 0.24s var(--ease-standard);
   user-select: none;
 }
 
@@ -692,12 +693,16 @@ onBeforeUnmount(() => {
 
 .vl-dock-nav-slot {
   flex-shrink: 0;
+  width: 100%;
+  max-width: var(--dock-floating-max-width, 380px);
+  margin-inline: auto;
   padding: 0 6px 6px 6px;
   background-color: var(--bg-activity);
 }
 
 .vl-dock-sheet.expanded .vl-dock-nav-slot {
   border-top: 1px solid var(--divider-hairline);
+  max-width: 100%;
   padding: 6px 10px 6px 10px;
 }
 </style>

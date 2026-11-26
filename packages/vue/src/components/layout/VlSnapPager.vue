@@ -197,25 +197,16 @@ watch(
 
       targetTravel = Math.max(currentDriver.scrollWidth - currentDriver.clientWidth, 1)
 
-      if (typeof currentDriver.scrollTo === 'function') {
-        const launchSmoothScroll = () => {
+      if (typeof currentDriver.scrollTo === 'function' && typeof requestAnimationFrame === 'function') {
+        rafId = requestAnimationFrame(() => {
+          rafId = null
           if (token !== transitionToken || !driverRef.value) return
           awaitingScrollEndToken = token
           driverRef.value.scrollTo({
             left: targetTravel,
             behavior: 'smooth',
           })
-        }
-
-        if (wasDriving && typeof requestAnimationFrame === 'function') {
-          rafId = requestAnimationFrame(() => {
-            rafId = null
-            launchSmoothScroll()
-          })
-        } else {
-          launchSmoothScroll()
-        }
-
+        })
         settleTimer = setTimeout(() => {
           finishTransition(token)
         }, 520)
@@ -344,8 +335,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .vl-snap-pager {
   position: relative;
+  display: flex;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -376,8 +370,12 @@ onBeforeUnmount(() => {
 
 .vl-pager-track {
   position: relative;
+  display: flex;
+  flex: 1 1 100%;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .vl-pager-track.is-driving-scroll-next {
@@ -408,12 +406,18 @@ onBeforeUnmount(() => {
 }
 
 .vl-snap-page {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .vl-snap-page.is-slot-0 {
   position: relative;
+  flex: 0 0 100%;
   z-index: 2;
 }
 

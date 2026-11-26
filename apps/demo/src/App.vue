@@ -15,6 +15,7 @@ import {
   VlScrollArea,
   VlSegmentedControl,
   VlSideNav,
+  VlSnapPager,
   VlSplitPane,
   VlStatusBar,
   VlTabBar,
@@ -81,8 +82,8 @@ const mobileDockDetent = ref<DockSheetDetent>('docked')
 const mobileDockDir = ref<'left' | 'right'>('left')
 const desktopViewDir = ref<'next' | 'prev'>('next')
 // Preset 1: Seamless horizontal slide for mobile views
-const mobileDockTransition = computed(() =>
-  mobileDockDir.value === 'left' ? 'vl-slide-h-next' : 'vl-slide-h-prev',
+const mobileSlideDirection = computed<'next' | 'prev'>(() =>
+  mobileDockDir.value === 'left' ? 'next' : 'prev',
 )
 // Preset 3 (Vertical): Slide + fade for desktop workbench sidebar view switching
 const desktopViewTransition = computed(() =>
@@ -359,25 +360,30 @@ onBeforeUnmount(() => {
     </VlTitleBar>
 
     <div class="mobile-stage">
-      <VlScrollArea class="center-scroll">
-        <div class="mobile-slide-stage">
-          <Transition :name="mobileDockTransition">
-            <div :key="activeSectionId" class="center-pad mobile">
-              <OverviewView v-if="activeSectionId === 'overview'" @navigate="openSection" />
-              <ColorsView v-else-if="activeSectionId === 'colors'" />
-              <ShapesView v-else-if="activeSectionId === 'shapes'" />
-              <TypographyMotionView v-else-if="activeSectionId === 'motion'" />
-              <IconsView v-else-if="activeSectionId === 'icons'" />
-              <ButtonsView v-else-if="activeSectionId === 'buttons'" />
-              <FormsView v-else-if="activeSectionId === 'forms'" />
-              <NavigationView v-else-if="activeSectionId === 'navigation'" />
-              <LayoutGesturesView v-else-if="activeSectionId === 'gestures'" />
-              <OverlaysFeedbackView v-else-if="activeSectionId === 'overlays'" />
+      <VlSnapPager
+        class="center-scroll"
+        :model-value="activeSectionId"
+        :direction="mobileSlideDirection"
+        aria-label="移动端演示分页"
+      >
+        <template #default="{ pageId }">
+          <VlScrollArea class="center-scroll">
+            <div class="center-pad mobile">
+              <OverviewView v-if="pageId === 'overview'" @navigate="openSection" />
+              <ColorsView v-else-if="pageId === 'colors'" />
+              <ShapesView v-else-if="pageId === 'shapes'" />
+              <TypographyMotionView v-else-if="pageId === 'motion'" />
+              <IconsView v-else-if="pageId === 'icons'" />
+              <ButtonsView v-else-if="pageId === 'buttons'" />
+              <FormsView v-else-if="pageId === 'forms'" />
+              <NavigationView v-else-if="pageId === 'navigation'" />
+              <LayoutGesturesView v-else-if="pageId === 'gestures'" />
+              <OverlaysFeedbackView v-else-if="pageId === 'overlays'" />
               <DataDisplayView v-else />
             </div>
-          </Transition>
-        </div>
-      </VlScrollArea>
+          </VlScrollArea>
+        </template>
+      </VlSnapPager>
 
       <VlDockSheet
         v-model:detent="mobileDockDetent"

@@ -536,6 +536,41 @@ watch(
   },
 )
 
+const nativeExpandedSheetStyle = computed(() => {
+  const mf = morphFactor.value
+  const insetPx = Math.round((1 - mf) * dockedInsetX.value * 10) / 10
+  const radiusPx = Math.round((1 - mf) * dockRadius.value * 10) / 10
+  return {
+    height: `${fullSheetHeight.value}px`,
+    marginLeft: `${insetPx}px`,
+    marginRight: `${insetPx}px`,
+    borderTopLeftRadius: `${radiusPx}px`,
+    borderTopRightRadius: `${radiusPx}px`,
+    borderBottomLeftRadius: `${radiusPx}px`,
+    borderBottomRightRadius: `${radiusPx}px`,
+  }
+})
+
+const nativePinnedNavStyle = computed(() => {
+  const mf = morphFactor.value
+  const insetPx = Math.round((1 - mf) * dockedInsetX.value * 10) / 10
+  const bottomPx = Math.round((1 - mf) * props.dockMargin * 10) / 10
+  const radiusPx = Math.round((1 - mf) * dockRadius.value * 10) / 10
+  return {
+    '--dock-capsule-height': `${effectiveNavHeight.value}px`,
+    left: `${insetPx}px`,
+    right: `${insetPx}px`,
+    bottom: props.contained
+      ? `${bottomPx}px`
+      : `calc(${bottomPx}px + ${(1 - mf).toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    paddingBottom: props.contained
+      ? '6px'
+      : `calc(6px + ${mf.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    borderBottomLeftRadius: `${radiusPx}px`,
+    borderBottomRightRadius: `${radiusPx}px`,
+  }
+})
+
 onMounted(() => {
   updatePointerMode()
   measureHost()
@@ -591,14 +626,18 @@ onBeforeUnmount(() => {
 
       <div
         class="vl-dock-native-backdrop-spacer"
-        :style="{ height: `${Math.max(0, hostHeight - effectiveDockedHeight)}px` }"
+        :style="{
+          height: contained
+            ? `${Math.max(0, hostHeight - effectiveDockedHeight - dockMargin)}px`
+            : `calc(${Math.max(0, hostHeight - effectiveDockedHeight - dockMargin)}px - var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+        }"
         @click="setDetent('docked')"
       />
 
       <section
         class="vl-dock-sheet expanded native-expanded"
         :class="{ unified: hasNav, dragging: isDragging }"
-        :style="{ height: `${fullSheetHeight}px` }"
+        :style="nativeExpandedSheetStyle"
         :aria-label="ariaLabel"
       >
         <div
@@ -616,7 +655,7 @@ onBeforeUnmount(() => {
           <div class="vl-dock-bar-row">
             <div class="vl-dock-left">
               <slot name="dock-left">
-                <span class="vl-dock-icon active" :class="{ 'is-circle': hasNav }">
+                <span class="vl-dock-icon" :class="{ active: morphFactor > 0.25, 'is-circle': hasNav }">
                   <VlIcon :name="icon" :size="hasNav ? 15 : 14" />
                 </span>
                 <span class="vl-dock-title">{{ title }}</span>
@@ -629,39 +668,48 @@ onBeforeUnmount(() => {
               <VlButton
                 size="xs"
                 shape="pill"
-                variant="primary"
-                class="vl-dock-action-pill expanded"
-                :title="detent === 'half' ? '全屏展开' : '收起'"
+                :variant="morphFactor > 0.25 ? 'primary' : 'neutral'"
+                class="vl-dock-action-pill"
+                :class="{ expanded: morphFactor > 0.25 }"
+                :title="detent === 'docked' ? '展开面板' : detent === 'half' ? '全屏展开' : '收起'"
                 @click="cycleDetent"
               >
-                {{ detent === 'half' ? '全屏' : '收起' }}
+                {{ detent === 'docked' ? '展开' : detent === 'half' ? '全屏' : '收起' }}
               </VlButton>
             </div>
           </div>
         </div>
 
-        <VlScrollArea class="vl-dock-scroll native-chain">
+        <VlScrollArea
+          class="vl-dock-scroll native-chain"
+          :style="{
+            opacity: morphFactor,
+            paddingBottom: hasNav ? `${effectiveNavHeight + 24}px` : '0px',
+          }"
+        >
           <slot />
         </VlScrollArea>
-
-        <div
-          v-if="hasNav"
-          class="vl-dock-nav-slot native-sticky"
-          :style="{ '--dock-capsule-height': `${effectiveNavHeight}px` }"
-        >
-          <VlBottomDock
-            embedded
-            :model-value="activeNav ?? navItems![0]?.id ?? ''"
-            :items="navItems!"
-            variant="capsule"
-            aria-label="底部导航"
-            @update:model-value="handleNavSelect"
-            @press-change="navPressed = $event"
-            @drag-follow="navFollow = $event"
-          />
-        </div>
       </section>
     </div>
+  </div>
+
+  <!-- Pinned Bottom Nav Dock while Expanded Native Overlay is Mounted -->
+  <div
+    v-if="nativeSheetMounted && hasNav"
+    class="vl-dock-nav-slot native-pinned"
+    :class="{ expanded: morphFactor > 0.25 }"
+    :style="nativePinnedNavStyle"
+  >
+    <VlBottomDock
+      embedded
+      :model-value="activeNav ?? navItems![0]?.id ?? ''"
+      :items="navItems!"
+      variant="capsule"
+      aria-label="底部导航"
+      @update:model-value="handleNavSelect"
+      @press-change="navPressed = $event"
+      @drag-follow="navFollow = $event"
+    />
   </div>
 
   <!-- ==================== DOCKED FLOATING PILL (AND DESKTOP SHEET) ==================== -->
@@ -815,12 +863,11 @@ onBeforeUnmount(() => {
 
 .vl-dock-sheet.native-expanded {
   position: relative;
-  left: 0;
-  right: 0;
+  left: auto;
+  right: auto;
   bottom: auto;
   z-index: auto;
-  width: 100%;
-  border-radius: 0px;
+  width: auto;
   flex-shrink: 0;
   touch-action: pan-y;
   transition: none;
@@ -834,13 +881,21 @@ onBeforeUnmount(() => {
   overscroll-behavior-y: auto;
 }
 
-.vl-dock-nav-slot.native-sticky {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
+.vl-dock-nav-slot.native-pinned {
+  position: absolute;
+  z-index: 45;
+  width: auto;
+  max-width: none;
+  margin-inline: 0;
+  padding: 6px 6px 6px 6px;
+  background-color: var(--bg-activity);
+  box-sizing: border-box;
+}
+
+.vl-dock-nav-slot.native-pinned.expanded {
   border-top: 1px solid var(--divider-hairline);
-  max-width: calc(var(--dock-floating-max-width, 380px) + 24px);
-  padding: 6px 18px calc(6px + var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px))) 18px;
+  padding-left: 18px;
+  padding-right: 18px;
 }
 
 .vl-dock-sheet {

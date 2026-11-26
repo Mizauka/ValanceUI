@@ -1,0 +1,31 @@
+{
+  "name": "@valance-ui/vue",
+  "version": "1.0.0",
+  "description": "Valance UI — Flat Geometric Vue 3 Design System & Component Library",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./style.css": "./dist/style.css",
+    "./tokens.css": "./dist/tokens.css",
+    "./base.css": "./dist/base.css",
+    "./prose.css": "./dist/prose.css",
+    "./workbench.css": "./dist/workbench.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/copy-css.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
+  }
+}

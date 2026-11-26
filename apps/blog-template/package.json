@@ -1,0 +1,17 @@
+{
+  "name": "@valance-ui/blog-template",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@valance-ui/vitepress-theme": "workspace:*",
+    "@valance-ui/vue": "workspace:*",
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.13"
+  },
+  "scripts": {
+    "dev": "vitepress dev docs --host 0.0.0.0",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs --host 0.0.0.0"
+  }
+}

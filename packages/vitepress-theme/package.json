@@ -1,0 +1,34 @@
+{
+  "name": "@valance-ui/vitepress-theme",
+  "version": "1.0.0",
+  "description": "Valance UI Flat Geometric Blog & Workbench Theme for VitePress",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.mjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@valance-ui/vue": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitepress": "^1.6.0",
+    "vue": "^3.5.0"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "typecheck": "vue-tsc --noEmit"
+  }
+}

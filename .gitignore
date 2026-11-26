@@ -1,0 +1,8 @@
+node_modules
+dist
+pages-dist
+.vitepress/cache
+.vitepress/dist
+*.tsbuildinfo
+*.log
+.DS_Store

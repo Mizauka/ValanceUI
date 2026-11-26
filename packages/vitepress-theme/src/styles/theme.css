@@ -1,0 +1,148 @@
+/* ==========================================================================
+   Valance VitePress Theme — Markdown, Shiki Code Blocks & Anchor Bridging
+   ========================================================================== */
+
+.vp-doc {
+  color: var(--text-prose);
+  font-size: var(--reader-font-size, 17px);
+  line-height: var(--reader-line-height, 1.85);
+  letter-spacing: 0.012em;
+  word-break: break-word;
+}
+
+.vp-doc.font-serif {
+  font-family: var(--font-serif);
+}
+
+.vp-doc.font-sans {
+  font-family: var(--font-sans);
+}
+
+.vp-doc .header-anchor {
+  float: left;
+  margin-left: -0.95em;
+  padding-right: 0.25em;
+  font-weight: 700;
+  opacity: 0;
+  border-bottom: none !important;
+  color: var(--accent-primary);
+  transition: opacity 0.16s var(--ease-standard);
+}
+
+.vp-doc h1:hover .header-anchor,
+.vp-doc h2:hover .header-anchor,
+.vp-doc h3:hover .header-anchor,
+.vp-doc .header-anchor:focus {
+  opacity: 1;
+}
+
+/* Shiki Code Blocks inside VitePress */
+.vp-doc div[class*='language-'] {
+  position: relative;
+  margin: 1.4em 0;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--divider-hairline);
+  border-left: 4px solid var(--accent-secondary);
+  overflow: hidden;
+  border-radius: 0 !important;
+}
+
+.vp-doc div[class*='language-'] > span.lang {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  padding: 2px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background-color: var(--bg-activity);
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.vp-doc div[class*='language-'] > button.copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 4;
+  width: 28px;
+  height: 28px;
+  border-radius: 0px;
+  background-color: var(--bg-chip);
+  color: var(--text-secondary);
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.14s ease,
+    border-radius 0.22s var(--ease-decel),
+    background-color 0.14s var(--ease-decel);
+}
+
+.vp-doc div[class*='language-']:hover > button.copy,
+.vp-doc div[class*='language-'] > button.copy.copied {
+  opacity: 1;
+}
+
+.vp-doc div[class*='language-'] > button.copy:hover {
+  border-radius: 14px;
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-ink);
+}
+
+.vp-doc div[class*='language-'] > button.copy:active {
+  border-radius: 14px;
+}
+
+.vp-doc div[class*='language-'] > button.copy::before {
+  content: 'COPY';
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.vp-doc div[class*='language-'] > button.copy.copied::before {
+  content: 'OK';
+}
+
+.vp-doc div[class*='language-'] pre {
+  margin: 0 !important;
+  padding: 16px 18px !important;
+  border: none !important;
+  background: transparent !important;
+  overflow-x: auto;
+}
+
+.vp-doc div[class*='language-'] code {
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* Shiki dual-theme variable bridging */
+:root[data-theme='dark'] .vp-doc .shiki,
+:root[data-theme='dark'] .vp-doc .shiki span {
+  color: var(--shiki-dark, inherit) !important;
+  background-color: transparent !important;
+}
+
+/* VitePress Details Block */
+.vp-doc details.custom-block {
+  margin: 1.4em 0;
+  padding: 12px 16px;
+  border-left: 4px solid var(--accent-primary);
+  background-color: var(--accent-primary-soft);
+}
+
+.vp-doc details.custom-block summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--accent-primary-text);
+  user-select: none;
+}

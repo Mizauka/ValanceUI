@@ -1,0 +1,429 @@
+/* ==========================================================================
+   Valance UI — Flat Geometric Design Tokens
+   Strict 3-Geometry Law:
+     1. Pure rectangle: border-radius: 0px (.shape-rect)
+     2. Pure circle: border-radius = width/2 in px (never mix % with px when animating!)
+     3. Pure pill: border-radius = exact calc(height / 2) in px when animating
+        (avoid 9999px or 50% on animated radius transitions to prevent oval/clamp bugs)
+   FORBIDDEN: Medium border-radius, box-shadow, drop-shadow, text-shadow.
+   ========================================================================== */
+
+:root {
+  /* Balanced Material Motion Curves (smooth gentle start, no explosive frame-1 jerk) */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decel: cubic-bezier(0.2, 0.6, 0.3, 1);
+  --ease-emphasized-decel: cubic-bezier(0.2, 0.6, 0.3, 1);
+  --ease-emphasized-accel: cubic-bezier(0.4, 0, 1, 1);
+  --ease-accel-decel: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-snappy: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Motion Token Aliases */
+  --ease-m3-spatial-fast: var(--ease-standard);
+  --ease-m3-spatial: var(--ease-decel);
+  --ease-m3-spatial-slow: var(--ease-decel);
+  --ease-m3-effects-fast: var(--ease-standard);
+  --ease-m3-effects: var(--ease-standard);
+
+  /* Expressive Motion Curve Aliases */
+  --ease-nonlinear: var(--ease-decel);
+  --ease-expressive: var(--ease-standard);
+
+  /* Layout Spacing & Safe Area */
+  --pane-pad: 12px;
+  --pane-gap: 8px;
+  --vl-safe-top: env(safe-area-inset-top, 0px);
+  --vl-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --vl-safe-left: env(safe-area-inset-left, 0px);
+  --vl-safe-right: env(safe-area-inset-right, 0px);
+
+  /* Activity Bar / Sidebar-of-Sidebar Rail Scale */
+  --activity-bar-width: 50px;
+  --activity-btn-size: 36px;
+  --activity-icon-size: 18px;
+  --activity-gap: 8px;
+  --activity-pad-y: 8px;
+
+  /* Resolution-Adaptive Mobile Activity Rail (enlarged fluid scale) */
+  --activity-bar-mobile-width: clamp(60px, 16vw, 76px);
+  --activity-btn-mobile-size: clamp(44px, 11.8vw, 56px);
+  --activity-icon-mobile-size: clamp(21px, 5.6vw, 27px);
+  --activity-gap-mobile: clamp(10px, 2.8vw, 14px);
+  --activity-pad-y-mobile: clamp(10px, 2.8vw, 14px);
+
+  /* Fluid Mobile TitleBar Scale (matches enlarged rail & dock, preserves safe area) */
+  --titlebar-mobile-height: clamp(58px, 15.2vw, 66px);
+  --titlebar-mobile-btn: clamp(40px, 10.6vw, 46px);
+  --titlebar-mobile-pill-height: clamp(38px, 10vw, 44px);
+  --titlebar-mobile-icon: clamp(18px, 4.8vw, 22px);
+
+  /* Unified Floating Bottom Dock Scale (shared identically by VlBottomDock & VlDockSheet) */
+  --dock-floating-inset: 12px;
+  --dock-floating-max-width: 380px;
+  --dock-capsule-height: 56px;
+  --dock-capsule-width: min(var(--dock-floating-max-width), calc(100% - var(--dock-floating-inset) * 2));
+  --dock-icon-size: 18px;
+  --dock-label-size: 11.5px;
+
+  /* Desktop UI Typography & Unified Basic Control Row Height */
+  --ui-font-xs: 10px;
+  --ui-font-sm: 11px;
+  --ui-font-md: 12px;
+  --ui-font-base: 13px;
+  --ui-font-lg: 14px;
+  --ui-row-height: 34px;
+  --list-bottom-pad: 14px;
+
+  /* Font Stacks */
+  --font-sans:
+    'PingFang SC',
+    'HarmonyOS Sans SC',
+    'Microsoft YaHei UI',
+    'Noto Sans SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  --font-serif:
+    'Noto Serif SC',
+    'Source Han Serif SC',
+    'Songti SC',
+    'STSong',
+    'SimSun',
+    Georgia,
+    serif;
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+}
+
+/* Intermediate Dual-Pane Tablet / Foldable Comfort Scale (641px - 1080px) */
+@media (max-width: 1080px) and (min-width: 641px) {
+  :root {
+    --ui-font-xs: 10.5px;
+    --ui-font-sm: 11.5px;
+    --ui-font-md: 12.5px;
+    --ui-font-base: 13.5px;
+    --ui-font-lg: 14.5px;
+    --ui-row-height: 34px;
+    --activity-bar-width: 52px;
+    --activity-btn-size: 38px;
+    --activity-icon-size: 19px;
+    --activity-gap: 9px;
+    --activity-pad-y: 9px;
+  }
+}
+
+/* Resolution-Adaptive Fluid UI Typography & Sidebar Rail on Phone (<= 640px) */
+@media (max-width: 640px) {
+  :root {
+    --ui-font-xs: clamp(11px, 2.8vw, 12.5px);
+    --ui-font-sm: clamp(12.5px, 3.2vw, 13.5px);
+    --ui-font-md: clamp(13.5px, 3.6vw, 15px);
+    --ui-font-base: clamp(14.5px, 3.9vw, 16px);
+    --ui-font-lg: clamp(15.5px, 4.2vw, 17.5px);
+    --ui-row-height: clamp(38px, 9.6vw, 44px);
+    --list-bottom-pad: 108px;
+    --activity-bar-width: var(--activity-bar-mobile-width);
+    --activity-btn-size: var(--activity-btn-mobile-size);
+    --activity-icon-size: var(--activity-icon-mobile-size);
+    --activity-gap: var(--activity-gap-mobile);
+    --activity-pad-y: var(--activity-pad-y-mobile);
+    --dock-capsule-height: clamp(58px, 15.2vw, 68px);
+    --dock-capsule-width: min(var(--dock-floating-max-width), calc(100% - var(--dock-floating-inset) * 2));
+    --dock-icon-size: clamp(19px, 5vw, 23px);
+    --dock-label-size: clamp(11.5px, 3vw, 13px);
+  }
+
+  /* Prevent iOS Safari forced auto-zoom on input focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ==========================================================================
+   Light Theme — Bright Rice-White (#FDFCF9)
+   ========================================================================== */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg-base: #FDFCF9;
+  --bg-editor: #FDFCF9;
+  --bg-surface: #F7F6F2;
+  --bg-activity: #F1EFEA;
+  --bg-titlebar: #F5F4EF;
+  --bg-elevated: #FFFEFC;
+  --bg-chip: #EFECE6;
+  --bg-hover: #E9E6DF;
+
+  /* Structural Hairlines */
+  --divider-hairline: #EAE7E0;
+  --divider-strong: #D9D5CC;
+
+  /* Ink / Typography */
+  --text-primary: #221E1A;
+  --text-secondary: #575049;
+  --text-muted: #857D73;
+  --text-prose: #28231E;
+
+  /* Default Light Accents: Primary Orange #F87F04, Secondary Teal #20A4A4 */
+  --accent-primary: #FA871E;
+  --accent-primary-hover: #E8760E;
+  --accent-primary-text: #B85700;
+  --accent-primary-soft: #FDEBD6;
+  --accent-primary-mid: #FAD8B4;
+  --accent-primary-ink: #FFFFFF;
+
+  --accent-secondary: #1EB5A8;
+  --accent-secondary-hover: #169B90;
+  --accent-secondary-text: #117D74;
+  --accent-secondary-soft: #DCF5F2;
+  --accent-secondary-mid: #BCE8E3;
+  --accent-secondary-ink: #FFFFFF;
+
+  /* Semantic Danger */
+  --accent-danger: #C84032;
+  --accent-danger-hover: #AD3327;
+  --accent-danger-soft: #F7DFDC;
+  --accent-danger-mid: #ECC0BB;
+  --accent-danger-text: #9E2A1E;
+  --accent-danger-ink: #FFFEFC;
+
+  /* Semantic Success */
+  --accent-success: #3E7F3E;
+  --accent-success-hover: #326932;
+  --accent-success-soft: #E1EFE1;
+  --accent-success-mid: #C2DFC2;
+  --accent-success-text: #2B5E2B;
+  --accent-success-ink: #FAFDF9;
+
+  /* Semantic Warning */
+  --accent-warning: #C27A0E;
+  --accent-warning-hover: #A66709;
+  --accent-warning-soft: #F9ECD6;
+  --accent-warning-mid: #F0D7AE;
+  --accent-warning-text: #8D5506;
+  --accent-warning-ink: #1F140A;
+
+  /* Semantic Info */
+  --accent-info: #2A6FB0;
+  --accent-info-hover: #215A91;
+  --accent-info-soft: #DFECF8;
+  --accent-info-mid: #BED8F0;
+  --accent-info-text: #1E5487;
+  --accent-info-ink: #FAFDFD;
+
+  /* Extended Chart Palette */
+  --chart-series-1: var(--accent-primary);
+  --chart-series-2: var(--accent-secondary);
+  --chart-series-3: #7A5AF8;
+  --chart-series-4: #D4476A;
+  --chart-series-5: #4E8B3B;
+  --chart-series-6: #B57614;
+
+  /* Status Bar */
+  --bg-statusbar: #F1EFEA;
+  --text-statusbar: #433D36;
+
+  /* WinUI Scrollbar & Sash Handle */
+  --scrollbar-thumb: #CFCBC2;
+  --sash-handle: #C1BDB3;
+}
+
+/* Light Mode — Swapped Accent Scheme */
+:root[data-theme='light'][data-accent='swapped'],
+:root[data-accent='swapped']:not([data-theme='dark']) {
+  --accent-primary: #1EB5A8;
+  --accent-primary-hover: #169B90;
+  --accent-primary-text: #117D74;
+  --accent-primary-soft: #DCF5F2;
+  --accent-primary-mid: #BCE8E3;
+  --accent-primary-ink: #FFFFFF;
+
+  --accent-secondary: #FA871E;
+  --accent-secondary-hover: #E8760E;
+  --accent-secondary-text: #B85700;
+  --accent-secondary-soft: #FDEBD6;
+  --accent-secondary-mid: #FAD8B4;
+  --accent-secondary-ink: #FFFFFF;
+}
+
+/* ==========================================================================
+   Dark Theme — Cool Slate Charcoal (#273033)
+   ========================================================================== */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg-base: #273033;
+  --bg-editor: #273033;
+  --bg-surface: #20282B;
+  --bg-activity: #1A2124;
+  --bg-titlebar: #1D2427;
+  --bg-elevated: #2F3A3E;
+  --bg-chip: #313C40;
+  --bg-hover: #384449;
+
+  /* Structural Hairlines */
+  --divider-hairline: #323D41;
+  --divider-strong: #47555B;
+
+  /* Ink / Typography */
+  --text-primary: #EBF0F2;
+  --text-secondary: #B0BEC3;
+  --text-muted: #7F9096;
+  --text-prose: #E3EAEC;
+
+  /* Default Dark Accents */
+  --accent-primary: #FF942B;
+  --accent-primary-hover: #FFA84D;
+  --accent-primary-text: #FFB15E;
+  --accent-primary-soft: #413022;
+  --accent-primary-mid: #593D22;
+  --accent-primary-ink: #1A1108;
+
+  --accent-secondary: #2CD4C4;
+  --accent-secondary-hover: #47E3D4;
+  --accent-secondary-text: #5CE8DA;
+  --accent-secondary-soft: #1B3B3E;
+  --accent-secondary-mid: #214D51;
+  --accent-secondary-ink: #091E1F;
+
+  /* Semantic Danger */
+  --accent-danger: #E05A4B;
+  --accent-danger-hover: #EC6F61;
+  --accent-danger-soft: #452421;
+  --accent-danger-mid: #5F2F2A;
+  --accent-danger-text: #FF8E80;
+  --accent-danger-ink: #1F0D0B;
+
+  /* Semantic Success */
+  --accent-success: #6BC46D;
+  --accent-success-hover: #7FD481;
+  --accent-success-soft: #1F3923;
+  --accent-success-mid: #2A4E2F;
+  --accent-success-text: #8CE08E;
+  --accent-success-ink: #0B1B0D;
+
+  /* Semantic Warning */
+  --accent-warning: #E5B454;
+  --accent-warning-hover: #F0C46C;
+  --accent-warning-soft: #3D321D;
+  --accent-warning-mid: #544324;
+  --accent-warning-text: #F2C978;
+  --accent-warning-ink: #1E170A;
+
+  /* Semantic Info */
+  --accent-info: #63A9EB;
+  --accent-info-hover: #7DBAF2;
+  --accent-info-soft: #1D3347;
+  --accent-info-mid: #264663;
+  --accent-info-text: #8CC5F7;
+  --accent-info-ink: #0A1724;
+
+  /* Extended Chart Palette */
+  --chart-series-1: var(--accent-primary);
+  --chart-series-2: var(--accent-secondary);
+  --chart-series-3: #A48BFF;
+  --chart-series-4: #F07191;
+  --chart-series-5: #7EC864;
+  --chart-series-6: #E5B454;
+
+  /* Status Bar */
+  --bg-statusbar: #1A2124;
+  --text-statusbar: #BAC7CC;
+
+  /* WinUI Scrollbar & Sash Handle */
+  --scrollbar-thumb: #4D5B61;
+  --sash-handle: #607178;
+}
+
+/* Dark Mode — Swapped Accent Scheme */
+:root[data-theme='dark'][data-accent='swapped'] {
+  --accent-primary: #2CD4C4;
+  --accent-primary-hover: #47E3D4;
+  --accent-primary-text: #5CE8DA;
+  --accent-primary-soft: #1B3B3E;
+  --accent-primary-mid: #214D51;
+  --accent-primary-ink: #091E1F;
+
+  --accent-secondary: #FF942B;
+  --accent-secondary-hover: #FFA84D;
+  --accent-secondary-text: #FFB15E;
+  --accent-secondary-soft: #413022;
+  --accent-secondary-mid: #593D22;
+  --accent-secondary-ink: #1A1108;
+}
+
+/* ==========================================================================
+   Scoped View Transitions: Circular Theme/Accent Ripple & Reader Column Width
+   ========================================================================== */
+:root[data-vt-kind='ripple']::view-transition-group(root) {
+  animation: none;
+}
+
+:root[data-vt-kind='ripple']::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  z-index: 1;
+}
+
+:root[data-vt-kind='ripple']::view-transition-new(root) {
+  mix-blend-mode: normal;
+  z-index: 9999;
+  animation: vl-theme-ripple-expand 480ms cubic-bezier(0.64, 0, 0.78, 0) both;
+}
+
+@keyframes vl-theme-ripple-expand {
+  from {
+    clip-path: circle(0px at var(--ripple-x, 50%) var(--ripple-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--ripple-r, 150vmax) at var(--ripple-x, 50%) var(--ripple-y, 50%));
+  }
+}
+
+/* KDE / Win11-style Snapshot Clip + Crossfade for Column Width */
+:root[data-vt-kind='width']::view-transition-group(root),
+:root[data-vt-kind='width']::view-transition-old(root),
+:root[data-vt-kind='width']::view-transition-new(root) {
+  animation: none;
+}
+
+:root[data-vt-kind='width']::view-transition-group(reader-column) {
+  animation: none;
+}
+
+:root[data-vt-kind='width']::view-transition-old(reader-column) {
+  mix-blend-mode: normal;
+  animation: vl-reader-width-old 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+:root[data-vt-kind='width']::view-transition-new(reader-column) {
+  mix-blend-mode: normal;
+  animation: vl-reader-width-new 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vl-reader-width-old {
+  from {
+    opacity: 1;
+    clip-path: inset(0px var(--width-inset-from, 0px) 0px var(--width-inset-from, 0px));
+  }
+  to {
+    opacity: 0;
+    clip-path: inset(0px var(--width-inset-to, 0px) 0px var(--width-inset-to, 0px));
+  }
+}
+
+@keyframes vl-reader-width-new {
+  from {
+    opacity: 0;
+    clip-path: inset(0px var(--width-inset-from, 0px) 0px var(--width-inset-from, 0px));
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0px var(--width-inset-to, 0px) 0px var(--width-inset-to, 0px));
+  }
+}

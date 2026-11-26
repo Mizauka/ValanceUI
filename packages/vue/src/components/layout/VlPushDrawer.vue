@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { usePushDrawerGesture } from '../../composables/usePushDrawerGesture'
 import { useBackHandler } from '../../composables/useBackNavigation'
 
@@ -27,8 +27,25 @@ const emit = defineEmits<{
 }>()
 
 const shellRef = ref<HTMLElement | null>(null)
+const scrollerRef = ref<HTMLElement | null>(null)
 const measuredHostWidth = ref(390)
+const isNativeTouchScroll = ref(false)
+const nativeProgress = ref(props.open ? 1 : 0)
+const nativeScrolling = ref(false)
+
 let resizeObserver: ResizeObserver | null = null
+let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null
+let programmaticScrollTarget: boolean | null = null
+let coarseMql: MediaQueryList | null = null
+
+function updatePointerMode() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    isNativeTouchScroll.value = false
+    return
+  }
+  // Use native compositor scroll-snap on coarse-pointer (touch/iOS ProMotion) devices for true 120Hz drag
+  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
+}
 
 function measureWidth() {
   if (props.contained && shellRef.value && shellRef.value.clientWidth > 0) {
@@ -49,7 +66,7 @@ const resolvedDrawerWidth = computed(() => {
 })
 
 const isOpenRef = computed(() => props.open)
-const enabledRef = computed(() => !props.disabled)
+const enabledRef = computed(() => !props.disabled && !isNativeTouchScroll.value)
 
 useBackHandler(
   computed(() => props.open && !props.contained && !props.disabled),
@@ -60,13 +77,22 @@ useBackHandler(
   150,
 )
 
-const { progress, isDragging, velocity, onPointerDown, onClickCapture } = usePushDrawerGesture({
+const {
+  progress: gestureProgress,
+  isDragging: gestureDragging,
+  velocity,
+  onPointerDown,
+  onClickCapture,
+} = usePushDrawerGesture({
   isOpen: isOpenRef,
   setOpen: (val) => emit('update:open', val),
   drawerWidth: resolvedDrawerWidth,
   enabled: enabledRef,
   ignoreSelector: props.ignoreSelector,
 })
+
+const progress = computed(() => (isNativeTouchScroll.value ? nativeProgress.value : gestureProgress.value))
+const isDragging = computed(() => (isNativeTouchScroll.value ? nativeScrolling.value : gestureDragging.value))
 
 watch(
   [progress, isDragging, velocity],
@@ -76,7 +102,77 @@ watch(
   { immediate: true },
 )
 
+function syncNativeScrollPosition(instant: boolean) {
+  const scroller = scrollerRef.value
+  if (!scroller || !isNativeTouchScroll.value) return
+  const targetLeft = props.open ? 0 : resolvedDrawerWidth.value
+  nativeProgress.value = props.open ? 1 : 0
+  if (instant) {
+    programmaticScrollTarget = null
+    scroller.scrollLeft = targetLeft
+    return
+  }
+  if (Math.abs(scroller.scrollLeft - targetLeft) < 1) return
+  programmaticScrollTarget = props.open
+  if (typeof scroller.scrollTo === 'function') {
+    scroller.scrollTo({ left: targetLeft, behavior: 'smooth' })
+  } else {
+    scroller.scrollLeft = targetLeft
+  }
+}
+
+function finalizeNativeScroll() {
+  if (scrollSettleTimer !== null) {
+    clearTimeout(scrollSettleTimer)
+    scrollSettleTimer = null
+  }
+  nativeScrolling.value = false
+  const scroller = scrollerRef.value
+  if (!scroller || !isNativeTouchScroll.value) return
+  const w = Math.max(1, resolvedDrawerWidth.value)
+  const p = Math.max(0, Math.min(1, 1 - scroller.scrollLeft / w))
+  nativeProgress.value = p
+  const settledOpen = p >= 0.5
+  if (programmaticScrollTarget !== null) {
+    programmaticScrollTarget = null
+    return
+  }
+  if (settledOpen !== props.open) {
+    emit('update:open', settledOpen)
+  }
+}
+
+function onNativeScroll() {
+  const scroller = scrollerRef.value
+  if (!scroller || !isNativeTouchScroll.value) return
+  const w = Math.max(1, resolvedDrawerWidth.value)
+  nativeProgress.value = Math.max(0, Math.min(1, 1 - scroller.scrollLeft / w))
+  nativeScrolling.value = true
+  if (scrollSettleTimer !== null) clearTimeout(scrollSettleTimer)
+  scrollSettleTimer = setTimeout(finalizeNativeScroll, 140)
+}
+
+watch(
+  () => props.open,
+  () => {
+    if (isNativeTouchScroll.value) {
+      syncNativeScrollPosition(false)
+    }
+  },
+)
+
+watch([resolvedDrawerWidth, isNativeTouchScroll], () => {
+  if (isNativeTouchScroll.value) {
+    syncNativeScrollPosition(true)
+  }
+})
+
 const drawerTransformStyle = computed(() => {
+  if (isNativeTouchScroll.value) {
+    return {
+      width: `${resolvedDrawerWidth.value}px`,
+    }
+  }
   const offset = ((progress.value - 1) * resolvedDrawerWidth.value).toFixed(2)
   return {
     width: `${resolvedDrawerWidth.value}px`,
@@ -85,6 +181,9 @@ const drawerTransformStyle = computed(() => {
 })
 
 const pushedMainTransformStyle = computed(() => {
+  if (isNativeTouchScroll.value) {
+    return undefined
+  }
   const offset = (progress.value * resolvedDrawerWidth.value).toFixed(2)
   return {
     transform: `translate3d(${offset}px, 0, 0)`,
@@ -98,10 +197,18 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  updatePointerMode()
   measureWidth()
+  if (isNativeTouchScroll.value) {
+    nextTick(() => syncNativeScrollPosition(true))
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', measureWidth, { passive: true })
     window.addEventListener('keydown', onKeydown)
+    if (typeof window.matchMedia === 'function') {
+      coarseMql = window.matchMedia('(pointer: coarse)')
+      coarseMql.addEventListener?.('change', updatePointerMode)
+    }
   }
   if (typeof ResizeObserver !== 'undefined' && shellRef.value) {
     resizeObserver = new ResizeObserver(measureWidth)
@@ -110,7 +217,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (scrollSettleTimer !== null) {
+    clearTimeout(scrollSettleTimer)
+    scrollSettleTimer = null
+  }
   resizeObserver?.disconnect()
+  coarseMql?.removeEventListener?.('change', updatePointerMode)
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', measureWidth)
     window.removeEventListener('keydown', onKeydown)
@@ -128,33 +240,41 @@ defineExpose({
   <div
     ref="shellRef"
     class="vl-push-shell shape-rect"
-    :class="{ contained }"
-    @pointerdown="onPointerDown"
-    @click.capture="onClickCapture"
+    :class="{ contained, 'native-scroll': isNativeTouchScroll }"
+    @pointerdown="!isNativeTouchScroll && onPointerDown($event)"
+    @click.capture="!isNativeTouchScroll && onClickCapture($event)"
   >
-    <aside
-      class="vl-push-drawer shape-rect"
-      :class="{ dragging: isDragging, contained }"
-      :style="drawerTransformStyle"
-      :aria-hidden="!open && !isDragging"
-      :aria-label="ariaLabel"
-    >
-      <slot name="drawer" />
-    </aside>
-
     <div
-      class="vl-push-stage shape-rect"
-      :class="{ dragging: isDragging }"
-      :style="pushedMainTransformStyle"
+      ref="scrollerRef"
+      class="vl-push-scroller"
+      :class="{ 'native-scroll': isNativeTouchScroll, 'is-disabled': disabled }"
+      @scroll.passive="onNativeScroll"
+      @scrollend="finalizeNativeScroll"
     >
-      <slot />
+      <aside
+        class="vl-push-drawer shape-rect"
+        :class="{ dragging: isDragging, contained, 'native-scroll': isNativeTouchScroll }"
+        :style="drawerTransformStyle"
+        :aria-hidden="!open && !isDragging"
+        :aria-label="ariaLabel"
+      >
+        <slot name="drawer" />
+      </aside>
 
       <div
-        class="vl-drawer-scrim"
-        :class="{ active: progress > 0.02, dragging: isDragging }"
-        :style="{ opacity: progress * scrimOpacity }"
-        @click="emit('update:open', false)"
-      />
+        class="vl-push-stage shape-rect"
+        :class="{ dragging: isDragging, 'native-scroll': isNativeTouchScroll }"
+        :style="pushedMainTransformStyle"
+      >
+        <slot />
+
+        <div
+          class="vl-drawer-scrim"
+          :class="{ active: progress > 0.02, dragging: isDragging }"
+          :style="{ opacity: progress * scrimOpacity }"
+          @click="emit('update:open', false)"
+        />
+      </div>
     </div>
 
     <slot name="overlay" />
@@ -181,6 +301,34 @@ defineExpose({
   --vl-safe-right: 0px;
 }
 
+.vl-push-shell.native-scroll {
+  touch-action: pan-x pan-y;
+}
+
+.vl-push-scroller {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.vl-push-scroller.native-scroll {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.vl-push-scroller.native-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.vl-push-scroller.native-scroll.is-disabled {
+  overflow-x: hidden;
+}
+
 .vl-push-drawer {
   position: absolute;
   top: 0;
@@ -194,6 +342,19 @@ defineExpose({
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transition: transform 0.36s var(--ease-standard);
+}
+
+.vl-push-drawer.native-scroll {
+  position: relative;
+  top: auto;
+  left: auto;
+  bottom: auto;
+  height: 100%;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  will-change: auto;
+  transition: none;
 }
 
 .vl-push-drawer.dragging {
@@ -217,6 +378,14 @@ defineExpose({
   backface-visibility: hidden;
   overflow: hidden;
   transition: transform 0.36s var(--ease-standard);
+}
+
+.vl-push-stage.native-scroll {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  will-change: auto;
+  transition: none;
 }
 
 .vl-push-stage.dragging {

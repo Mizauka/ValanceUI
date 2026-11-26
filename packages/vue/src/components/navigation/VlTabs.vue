@@ -268,6 +268,8 @@ onBeforeUnmount(() => {
 
 .vl-header-tab {
   position: relative;
+  z-index: 3;
+  transform: translate3d(0, 0, 0);
   display: inline-flex;
   align-items: center;
   gap: 5px;

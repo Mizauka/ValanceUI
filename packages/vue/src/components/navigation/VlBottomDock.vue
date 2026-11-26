@@ -436,6 +436,7 @@ onBeforeUnmount(() => {
 .vl-dock-tab {
   position: relative;
   z-index: 2;
+  transform: translate3d(0, 0, 0);
   border-radius: calc((var(--dock-h) - 10px) / 2);
   display: flex;
   flex-direction: column;
@@ -601,6 +602,7 @@ onBeforeUnmount(() => {
 .vl-bar-item {
   position: relative;
   z-index: 2;
+  transform: translate3d(0, 0, 0);
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -311,6 +311,7 @@ onBeforeUnmount(() => {
 .vl-seg-item {
   position: relative;
   z-index: 2;
+  transform: translate3d(0, 0, 0);
   height: 100%;
   border-radius: calc((var(--seg-h) - 4px) / 2);
   display: inline-flex;

@@ -396,6 +396,7 @@ onBeforeUnmount(() => {
 .vl-rail-tab {
   position: relative;
   z-index: 2;
+  transform: translate3d(0, 0, 0);
   min-height: 58px;
   padding: 8px 4px;
   border-radius: calc((var(--rail-w) - 10px) / 2);
@@ -573,6 +574,7 @@ onBeforeUnmount(() => {
 .vl-rail-bar-item {
   position: relative;
   z-index: 2;
+  transform: translate3d(0, 0, 0);
   display: flex;
   flex-direction: column;
   align-items: center;

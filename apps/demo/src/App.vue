@@ -363,6 +363,7 @@ onBeforeUnmount(() => {
       <VlSnapPager
         class="center-scroll"
         :model-value="activeSectionId"
+        :pages="['overview', 'gestures', 'buttons']"
         :direction="mobileSlideDirection"
         aria-label="移动端演示分页"
       >

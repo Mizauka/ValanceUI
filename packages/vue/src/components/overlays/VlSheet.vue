@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, type CSSProperties } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
+
+let sheetInstanceSeq = 0
 
 const props = withDefaults(
   defineProps<{
@@ -33,12 +35,18 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const timelineName = `--vl-sheet-tl-${++sheetInstanceSeq}`
+
 const sheetRef = ref<HTMLElement | null>(null)
 const nativeScrollerRef = ref<HTMLElement | null>(null)
+const nativeDriverRef = ref<HTMLElement | null>(null)
 const isNativeTouchScroll = ref(false)
 const nativeMounted = ref(props.open)
 const nativeBackdropRatio = ref(props.open ? 1 : 0)
 const snapDismissPx = ref(360)
+const nativeAnimMode = ref<'open-a' | 'open-b' | 'close-a' | 'close-b' | null>(null)
+const nativeAnimStartOffset = ref('0%')
+const nativeAnimStartOpacity = ref(1)
 const isDragging = ref(false)
 const dismissing = ref(false)
 const dragOffsetX = ref(0)
@@ -54,10 +62,27 @@ let dragVelocityY = 0
 let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
 let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
-let nativeProgrammaticTarget: 'open' | 'close' | null = null
-let nativeOpenToken = 0
+let nativeDriverTimer: ReturnType<typeof setTimeout> | null = null
+let nativeDriverRaf: number | null = null
+let nativeAnimToken = 0
+let awaitingDriverEndToken = 0
+let nativeDriverParity: 'a' | 'b' = 'a'
 let coarseMql: MediaQueryList | null = null
 let sheetRo: ResizeObserver | null = null
+
+const hasCssScrollTimeline =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('animation-timeline: scroll()') &&
+  CSS.supports('timeline-scope: --vl-t')
+
+function updatePointerMode() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    isNativeTouchScroll.value = false
+    return
+  }
+  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
+}
 
 const nativeDismissStyle = computed(() =>
   props.placement === 'bottom'
@@ -85,15 +110,10 @@ function attachSheetObserver() {
     const next = measureSheetDim()
     if (Math.abs(next - snapDismissPx.value) <= 1) return
     snapDismissPx.value = next
-    if (
-      props.open &&
-      !isDragging.value &&
-      nativeProgrammaticTarget === null &&
-      props.placement !== 'left'
-    ) {
+    if (props.open && !isDragging.value && nativeAnimMode.value === null && props.placement !== 'left') {
       nextTick(() => {
         const m = getNativeMetrics()
-        if (m && nativeProgrammaticTarget === null) {
+        if (m && nativeAnimMode.value === null) {
           setNativeScrollInstant(m.openPos)
           nativeBackdropRatio.value = 1
         }
@@ -101,20 +121,6 @@ function attachSheetObserver() {
     }
   })
   sheetRo.observe(sheetRef.value)
-}
-
-function onNativeTouchStart() {
-  if (nativeProgrammaticTarget === 'open') {
-    nativeProgrammaticTarget = null
-  }
-}
-
-function updatePointerMode() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    isNativeTouchScroll.value = false
-    return
-  }
-  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
 }
 
 function getNativeMetrics() {
@@ -156,31 +162,103 @@ function setNativeScrollInstant(pos: number) {
   else scroller.scrollLeft = pos
 }
 
-function scrollNativeSmooth(target: 'open' | 'close') {
-  const scroller = nativeScrollerRef.value
-  const m = getNativeMetrics()
-  if (!scroller || !m) {
-    if (target === 'close') nativeMounted.value = false
-    return
+function clearNativeDriverTimers() {
+  if (nativeDriverTimer !== null) {
+    clearTimeout(nativeDriverTimer)
+    nativeDriverTimer = null
   }
-  const dest = target === 'open' ? m.openPos : m.closePos
-  if (Math.abs(m.current - dest) < 2) {
-    nativeBackdropRatio.value = target === 'open' ? 1 : 0
-    if (target === 'close') {
+  if (nativeDriverRaf !== null && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(nativeDriverRaf)
+    nativeDriverRaf = null
+  }
+}
+
+function finishNativeDriverAnim(token: number) {
+  if (token !== nativeAnimToken) return
+  clearNativeDriverTimers()
+  awaitingDriverEndToken = 0
+  const mode = nativeAnimMode.value
+  nativeAnimMode.value = null
+  if (nativeDriverRef.value) {
+    nativeDriverRef.value.scrollLeft = 0
+  }
+  if (mode?.startsWith('close') && !props.open) {
+    detachSheetObserver()
+    nativeMounted.value = false
+    nativeBackdropRatio.value = 0
+  } else if (mode?.startsWith('open')) {
+    nativeBackdropRatio.value = 1
+  }
+}
+
+function onNativeDriverScrollEnd() {
+  const driver = nativeDriverRef.value
+  if (!driver || !nativeAnimMode.value) return
+  if (awaitingDriverEndToken !== nativeAnimToken) return
+  if (driver.scrollLeft <= 4) return
+  finishNativeDriverAnim(nativeAnimToken)
+}
+
+async function runNativeTimelineAnim(direction: 'open' | 'close') {
+  const token = ++nativeAnimToken
+  clearNativeDriverTimers()
+  awaitingDriverEndToken = 0
+
+  if (!hasCssScrollTimeline) {
+    // Fallback if engine supports coarse pointer without CSS scroll-timeline
+    if (direction === 'open') {
+      nativeBackdropRatio.value = 1
+      const m = getNativeMetrics()
+      if (m) setNativeScrollInstant(m.openPos)
+    } else {
       detachSheetObserver()
       nativeMounted.value = false
+      nativeBackdropRatio.value = 0
     }
-    nativeProgrammaticTarget = null
     return
   }
-  nativeProgrammaticTarget = target
-  if (typeof scroller.scrollTo === 'function') {
-    scroller.scrollTo(m.axis === 'top' ? { top: dest, behavior: 'smooth' } : { left: dest, behavior: 'smooth' })
+
+  nativeDriverParity = nativeDriverParity === 'a' ? 'b' : 'a'
+  const driver = nativeDriverRef.value
+  if (driver) driver.scrollLeft = 0
+
+  if (direction === 'open') {
+    nativeAnimStartOffset.value = offscreenPercent()
+    nativeAnimStartOpacity.value = 0
   } else {
-    setNativeScrollInstant(dest)
+    const m = getNativeMetrics()
+    const visRatio = m ? m.ratio : 1
+    const closedFrac = 1 - visRatio
+    const sign = props.placement === 'left' ? -1 : 1
+    nativeAnimStartOffset.value = `${(sign * closedFrac * 100).toFixed(2)}%`
+    nativeAnimStartOpacity.value = visRatio
   }
-  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
-  nativeSettleTimer = setTimeout(finalizeNativeScroll, 580)
+
+  nativeAnimMode.value = `${direction}-${nativeDriverParity}`
+  await nextTick()
+  if (token !== nativeAnimToken) return
+
+  const activeDriver = nativeDriverRef.value
+  if (!activeDriver || typeof activeDriver.scrollTo !== 'function' || typeof requestAnimationFrame !== 'function') {
+    finishNativeDriverAnim(token)
+    return
+  }
+
+  const travel = Math.max(activeDriver.scrollWidth - activeDriver.clientWidth, 1)
+  nativeDriverRaf = requestAnimationFrame(() => {
+    nativeDriverRaf = null
+    if (token !== nativeAnimToken || !nativeDriverRef.value) return
+    awaitingDriverEndToken = token
+    nativeDriverRef.value.scrollTo({ left: travel, behavior: 'smooth' })
+  })
+  nativeDriverTimer = setTimeout(() => {
+    finishNativeDriverAnim(token)
+  }, 540)
+}
+
+function offscreenPercent(): string {
+  if (props.placement === 'left') return '-100%'
+  return '100%'
 }
 
 function finalizeNativeScroll() {
@@ -189,22 +267,10 @@ function finalizeNativeScroll() {
     nativeSettleTimer = null
   }
   isDragging.value = false
+  if (nativeAnimMode.value !== null) return
   const m = getNativeMetrics()
   if (!m) return
   nativeBackdropRatio.value = m.ratio
-
-  if (nativeProgrammaticTarget === 'close') {
-    nativeProgrammaticTarget = null
-    if (!props.open) {
-      detachSheetObserver()
-      nativeMounted.value = false
-    }
-    return
-  }
-  if (nativeProgrammaticTarget === 'open') {
-    nativeProgrammaticTarget = null
-    return
-  }
 
   if (m.ratio < 0.45 && props.open) {
     detachSheetObserver()
@@ -214,14 +280,13 @@ function finalizeNativeScroll() {
 }
 
 function onNativeScroll() {
+  if (nativeAnimMode.value !== null) return
   const m = getNativeMetrics()
   if (!m) return
   nativeBackdropRatio.value = m.ratio
-  if (nativeProgrammaticTarget === null) {
-    isDragging.value = true
-    if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
-    nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
-  }
+  isDragging.value = true
+  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
+  nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
 }
 
 function onNativeBackdropClick(e: MouseEvent) {
@@ -259,7 +324,8 @@ useBackHandler(
 watch(
   () => props.open,
   async (isOpen) => {
-    const token = ++nativeOpenToken
+    const token = ++nativeAnimToken
+    clearNativeDriverTimers()
     if (isOpen) {
       dismissing.value = false
       dismissFromOffset = null
@@ -270,26 +336,75 @@ watch(
         nativeMounted.value = true
         nativeBackdropRatio.value = 0
         await nextTick()
-        if (token !== nativeOpenToken || !props.open) return
+        if (token !== nativeAnimToken || !props.open) return
         snapDismissPx.value = measureSheetDim()
         await nextTick()
-        if (token !== nativeOpenToken || !props.open) return
+        if (token !== nativeAnimToken || !props.open) return
         attachSheetObserver()
         const m = getNativeMetrics()
-        if (m) setNativeScrollInstant(m.closePos)
-        if (typeof requestAnimationFrame !== 'undefined') {
-          requestAnimationFrame(() => {
-            if (token === nativeOpenToken && props.open) scrollNativeSmooth('open')
-          })
-        } else {
-          scrollNativeSmooth('open')
-        }
+        if (m) setNativeScrollInstant(m.openPos)
+        await runNativeTimelineAnim('open')
       }
     } else if (isNativeTouchScroll.value && nativeMounted.value) {
-      scrollNativeSmooth('close')
+      await runNativeTimelineAnim('close')
     }
   },
 )
+
+const nativeRootStyle = computed<CSSProperties>(() =>
+  hasCssScrollTimeline
+    ? ({ timelineScope: timelineName } as unknown as CSSProperties)
+    : {},
+)
+
+const nativeDriverStyle = computed<CSSProperties>(() =>
+  hasCssScrollTimeline
+    ? ({ scrollTimelineName: timelineName } as unknown as CSSProperties)
+    : {},
+)
+
+const nativeBackdropStyle = computed<CSSProperties>(() => {
+  if (nativeAnimMode.value && hasCssScrollTimeline) {
+    return {
+      '--vl-sheet-op-from': String(nativeAnimStartOpacity.value),
+      animationTimeline: timelineName,
+    } as unknown as CSSProperties
+  }
+  return { opacity: nativeBackdropRatio.value }
+})
+
+const nativeScrollerStyle = computed<CSSProperties>(() => {
+  if (!nativeAnimMode.value || !hasCssScrollTimeline) return {}
+  const axisX = props.placement !== 'bottom'
+  const isClosing = nativeAnimMode.value.startsWith('close')
+  const fromVal = nativeAnimStartOffset.value
+  const toVal = isClosing ? offscreenPercent() : '0%'
+  return {
+    '--vl-sheet-from-x': axisX ? fromVal : '0%',
+    '--vl-sheet-from-y': axisX ? '0%' : fromVal,
+    '--vl-sheet-to-x': axisX ? toVal : '0%',
+    '--vl-sheet-to-y': axisX ? '0%' : toVal,
+    animationTimeline: timelineName,
+  } as unknown as CSSProperties
+})
+
+const nativeScrollerClass = computed(() => {
+  const list: string[] = [`place-${props.placement}`]
+  if (props.contained) list.push('contained')
+  if (nativeAnimMode.value) {
+    const parity = nativeAnimMode.value.endsWith('-a') ? 'a' : 'b'
+    list.push(`is-anim-${parity}`, 'is-animating')
+  }
+  return list
+})
+
+const nativeBackdropAnimClass = computed(() => {
+  if (!nativeAnimMode.value) return undefined
+  const parity = nativeAnimMode.value.endsWith('-a') ? 'a' : 'b'
+  return nativeAnimMode.value.startsWith('open')
+    ? `is-bd-open-${parity}`
+    : `is-bd-close-${parity}`
+})
 
 const sheetDynamicStyle = computed(() => {
   const base: Record<string, string> = {}
@@ -512,7 +627,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  nativeAnimToken++
   clearActiveAnim()
+  clearNativeDriverTimers()
   cleanupDrag()
   detachSheetObserver()
   if (nativeSettleTimer !== null) {
@@ -527,93 +644,109 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- ==================== NATIVE 120Hz SCROLL-SNAP SHEET (TOUCH / SAFARI PROMOTION) ==================== -->
+  <!-- ==================== NATIVE 120Hz SCROLL-SNAP + TIMELINE SHEET (TOUCH) ==================== -->
   <template v-if="isNativeTouchScroll">
     <div
       v-if="nativeMounted"
-      class="vl-sheet-backdrop shape-rect native-scroll"
+      class="vl-sheet-native-root"
       :class="{ contained }"
-      :style="{ opacity: nativeBackdropRatio }"
-      aria-hidden="true"
-    />
-
-    <div
-      v-if="nativeMounted"
-      ref="nativeScrollerRef"
-      class="vl-sheet-native-scroller"
-      :class="[`place-${placement}`, { contained }]"
-      @touchstart.passive="onNativeTouchStart"
-      @scroll.passive="onNativeScroll"
-      @scrollend="finalizeNativeScroll"
+      :style="nativeRootStyle"
     >
-      <!-- Dismiss snap stop BEFORE sheet for bottom / right placements -->
       <div
-        v-if="placement !== 'left'"
-        class="vl-sheet-snap-dismiss"
-        :style="nativeDismissStyle"
-        @click="onNativeBackdropClick"
-      />
-
-      <!-- Present snap stop holding the actual sheet -->
-      <div
-        class="vl-sheet-snap-present"
-        :class="`place-${placement}`"
-        @click="onNativeBackdropClick"
+        v-if="hasCssScrollTimeline"
+        ref="nativeDriverRef"
+        class="vl-sheet-driver"
+        aria-hidden="true"
+        :style="nativeDriverStyle"
+        @scrollend="onNativeDriverScrollEnd"
       >
-        <section
-          ref="sheetRef"
-          class="vl-sheet shape-rect native-scroll"
-          :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
-          :style="sheetDynamicStyle"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="title"
-        >
-          <div class="vl-sheet-head shape-rect native-scroll">
-            <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
-              <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
-            </div>
-
-            <div class="vl-sheet-title-row">
-              <div class="vl-sheet-title-left">
-                <span class="vl-sheet-accent shape-rect" />
-                <h2 class="vl-sheet-title">{{ title }}</h2>
-              </div>
-
-              <div class="vl-sheet-title-right">
-                <slot name="header-extra" />
-                <VlIconButton
-                  icon="close"
-                  size="sm"
-                  morph-on-hover
-                  title="关闭"
-                  aria-label="关闭"
-                  class="vl-sheet-close-btn"
-                  @click="close"
-                />
-              </div>
-            </div>
-          </div>
-
-          <VlScrollArea class="vl-sheet-scroll">
-            <div class="vl-sheet-body">
-              <slot />
-            </div>
-          </VlScrollArea>
-
-          <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
-            <slot name="footer" />
-          </footer>
-        </section>
+        <div class="vl-sheet-driver-spacer" />
       </div>
 
-      <!-- Dismiss snap stop AFTER sheet for left placement -->
       <div
-        v-if="placement === 'left'"
-        class="vl-sheet-snap-dismiss"
-        :style="nativeDismissStyle"
-        @click="onNativeBackdropClick"
+        class="vl-sheet-backdrop shape-rect native-scroll"
+        :class="[{ contained }, nativeBackdropAnimClass]"
+        :style="nativeBackdropStyle"
+        aria-hidden="true"
       />
+
+      <div
+        ref="nativeScrollerRef"
+        class="vl-sheet-native-scroller"
+        :class="nativeScrollerClass"
+        :style="nativeScrollerStyle"
+        @scroll.passive="onNativeScroll"
+        @scrollend="finalizeNativeScroll"
+      >
+        <!-- Dismiss snap stop BEFORE sheet for bottom / right placements -->
+        <div
+          v-if="placement !== 'left'"
+          class="vl-sheet-snap-dismiss"
+          :style="nativeDismissStyle"
+          @click="onNativeBackdropClick"
+        />
+
+        <!-- Present snap stop holding the actual sheet -->
+        <div
+          class="vl-sheet-snap-present"
+          :class="`place-${placement}`"
+          @click="onNativeBackdropClick"
+        >
+          <section
+            ref="sheetRef"
+            class="vl-sheet shape-rect native-scroll"
+            :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
+            :style="sheetDynamicStyle"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="title"
+          >
+            <div class="vl-sheet-head shape-rect native-scroll">
+              <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
+                <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
+              </div>
+
+              <div class="vl-sheet-title-row">
+                <div class="vl-sheet-title-left">
+                  <span class="vl-sheet-accent shape-rect" />
+                  <h2 class="vl-sheet-title">{{ title }}</h2>
+                </div>
+
+                <div class="vl-sheet-title-right">
+                  <slot name="header-extra" />
+                  <VlIconButton
+                    icon="close"
+                    size="sm"
+                    morph-on-hover
+                    title="关闭"
+                    aria-label="关闭"
+                    class="vl-sheet-close-btn"
+                    @click="close"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <VlScrollArea class="vl-sheet-scroll">
+              <div class="vl-sheet-body">
+                <slot />
+              </div>
+            </VlScrollArea>
+
+            <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
+              <slot name="footer" />
+            </footer>
+          </section>
+        </div>
+
+        <!-- Dismiss snap stop AFTER sheet for left placement -->
+        <div
+          v-if="placement === 'left'"
+          class="vl-sheet-snap-dismiss"
+          :style="nativeDismissStyle"
+          @click="onNativeBackdropClick"
+        />
+      </div>
     </div>
   </template>
 
@@ -693,7 +826,74 @@ onBeforeUnmount(() => {
   </template>
 </template>
 
+<style>
+@property --vl-sheet-from-x {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --vl-sheet-from-y {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
+@property --vl-sheet-to-x {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --vl-sheet-to-y {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --vl-sheet-op-from {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+</style>
+
 <style scoped>
+.vl-sheet-native-root {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+}
+
+.vl-sheet-native-root.contained {
+  position: absolute;
+}
+
+.vl-sheet-driver {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: none;
+  opacity: 0.001;
+  scrollbar-width: none;
+  scroll-timeline-axis: x;
+}
+
+.vl-sheet-driver::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.vl-sheet-driver-spacer {
+  width: calc(100% + 220px);
+  height: 1px;
+}
+
 .vl-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -706,14 +906,45 @@ onBeforeUnmount(() => {
 }
 
 .vl-sheet-backdrop.native-scroll {
+  position: absolute;
+  z-index: 0;
   pointer-events: none;
   will-change: opacity;
 }
 
+.vl-sheet-backdrop.is-bd-open-a {
+  animation-name: vl-sheet-bd-open-a;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-sheet-backdrop.is-bd-open-b {
+  animation-name: vl-sheet-bd-open-b;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-sheet-backdrop.is-bd-close-a {
+  animation-name: vl-sheet-bd-close-a;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-sheet-backdrop.is-bd-close-b {
+  animation-name: vl-sheet-bd-close-b;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
 .vl-sheet-native-scroller {
-  position: fixed;
-  inset: 0;
-  z-index: 65;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
   display: flex;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -723,8 +954,23 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.vl-sheet-native-scroller.contained {
-  position: absolute;
+.vl-sheet-native-scroller.is-animating {
+  pointer-events: none;
+  will-change: transform;
+}
+
+.vl-sheet-native-scroller.is-anim-a {
+  animation-name: vl-sheet-move-a;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-sheet-native-scroller.is-anim-b {
+  animation-name: vl-sheet-move-b;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
 }
 
 .vl-sheet-native-scroller.place-bottom {
@@ -978,23 +1224,57 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.vl-sheet-left-enter-active,
-.vl-sheet-right-enter-active {
-  transition: transform 0.4s var(--ease-m3-spatial);
+@keyframes vl-sheet-move-a {
+  from {
+    transform: translate3d(var(--vl-sheet-from-x, 0%), var(--vl-sheet-from-y, 100%), 0);
+  }
+  to {
+    transform: translate3d(var(--vl-sheet-to-x, 0%), var(--vl-sheet-to-y, 0%), 0);
+  }
 }
 
-.vl-sheet-left-leave-active,
-.vl-sheet-right-leave-active {
-  transition: transform 0.24s var(--ease-standard);
+@keyframes vl-sheet-move-b {
+  from {
+    transform: translate3d(var(--vl-sheet-from-x, 0%), var(--vl-sheet-from-y, 100%), 0);
+  }
+  to {
+    transform: translate3d(var(--vl-sheet-to-x, 0%), var(--vl-sheet-to-y, 0%), 0);
+  }
 }
 
-.vl-sheet-left-enter-from,
-.vl-sheet-left-leave-to {
-  transform: translateX(-100%);
+@keyframes vl-sheet-bd-open-a {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.vl-sheet-right-enter-from,
-.vl-sheet-right-leave-to {
-  transform: translateX(100%);
+@keyframes vl-sheet-bd-open-b {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vl-sheet-bd-close-a {
+  from {
+    opacity: var(--vl-sheet-op-from, 1);
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vl-sheet-bd-close-b {
+  from {
+    opacity: var(--vl-sheet-op-from, 1);
+  }
+  to {
+    opacity: 0;
+  }
 }
 </style>

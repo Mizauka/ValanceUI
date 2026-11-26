@@ -28,6 +28,7 @@ import {
   VlShape,
   VlSheet,
   VlSideNav,
+  VlSnapPager,
   VlStepper,
   VlSteps,
   VlSwitch,
@@ -760,5 +761,52 @@ describe('@valance-ui/vue core components', () => {
     expect(dispatchBack()).toBe(true)
     expect(order).toEqual(['dialog', 'drawer'])
     expect(dispatchBack()).toBe(false)
+  })
+
+  it('interrupts VlSnapPager mid-flight on rapid taps without dropping animation', async () => {
+    const pager = mount(VlSnapPager, {
+      props: {
+        modelValue: 'overview',
+        pages: ['overview', 'gestures', 'buttons'],
+      },
+      slots: {
+        default: '<div class="page-body">Page</div>',
+      },
+    })
+
+    const track = pager.find('.vl-pager-track')
+    const trackEl = track.element as HTMLElement
+    Object.defineProperty(trackEl, 'clientWidth', { configurable: true, value: 400 })
+
+    // Step 1: start forward transition overview -> gestures
+    await pager.setProps({ modelValue: 'gestures' })
+    expect(track.classes()).toContain('is-driving-kf-b')
+    expect(track.attributes('style')).toContain('--vl-pager-from: 0.000%')
+    expect(track.attributes('style')).toContain('--vl-pager-to: -100.000%')
+
+    // Step 2: simulate mid-flight -40% transform (-160px on 400px track) and rapidly tap buttons
+    const origGetComputedStyle = window.getComputedStyle
+    const spyGetComputedStyle = ((el: Element) => {
+      if (el === trackEl) {
+        return { transform: 'matrix(1, 0, 0, 1, -160, 0)' } as CSSStyleDeclaration
+      }
+      return origGetComputedStyle.call(window, el)
+    }) as typeof window.getComputedStyle
+    window.getComputedStyle = spyGetComputedStyle
+
+    try {
+      await pager.setProps({ modelValue: 'buttons' })
+      expect(track.classes()).toContain('is-driving-kf-a')
+      expect(track.attributes('style')).toContain('--vl-pager-from: -40.000%')
+      expect(track.attributes('style')).toContain('--vl-pager-to: -200.000%')
+
+      // Step 3: immediately reverse back to gestures at -40% without losing animation
+      await pager.setProps({ modelValue: 'gestures' })
+      expect(track.classes()).toContain('is-driving-kf-b')
+      expect(track.attributes('style')).toContain('--vl-pager-from: -40.000%')
+      expect(track.attributes('style')).toContain('--vl-pager-to: -100.000%')
+    } finally {
+      window.getComputedStyle = origGetComputedStyle
+    }
   })
 })

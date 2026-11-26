@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
   border-radius: calc(var(--seg-h) / 2);
   flex-shrink: 0;
   user-select: none;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .vl-seg-track.size-sm {

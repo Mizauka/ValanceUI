@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
   background-color: var(--bg-activity);
   border: 1px solid var(--divider-strong);
   overflow: visible;
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   transform-origin: center;
   transform: scale(1);
@@ -508,7 +508,7 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--divider-hairline);
   padding-bottom: var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px));
   user-select: none;
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   overflow: visible;
   z-index: 30;

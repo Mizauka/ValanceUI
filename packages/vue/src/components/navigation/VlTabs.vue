@@ -218,7 +218,7 @@ onBeforeUnmount(() => {
   height: 100%;
   gap: 14px;
   min-width: 0;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .vl-tabs-indicator {

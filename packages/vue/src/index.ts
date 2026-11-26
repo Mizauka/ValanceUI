@@ -242,6 +242,7 @@ import VlCard from './components/layout/VlCard.vue'
 import VlAccordion from './components/layout/VlAccordion.vue'
 import VlWorkbenchShell from './components/layout/VlWorkbenchShell.vue'
 import VlPullRefresh from './components/layout/VlPullRefresh.vue'
+import VlSnapPager from './components/layout/VlSnapPager.vue'
 
 export {
   VlScrollArea,
@@ -252,6 +253,7 @@ export {
   VlAccordion,
   VlPullRefresh,
   VlWorkbenchShell,
+  VlSnapPager,
 }
 
 // ─── Overlays & Feedback ─────────────────────────────────────────────
@@ -415,6 +417,7 @@ const components = {
   VlAccordion,
   VlPullRefresh,
   VlWorkbenchShell,
+  VlSnapPager,
   VlDockSheet,
   VlSheet,
   VlDialog,

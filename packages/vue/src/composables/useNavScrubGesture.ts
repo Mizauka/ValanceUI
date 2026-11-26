@@ -236,11 +236,19 @@ export function useNavScrubGesture(options: NavScrubGestureOptions) {
     }
   }
 
+  function onWindowTouchMove(e: TouchEvent) {
+    if (activePointerId === null) return
+    if (dragging.value || (pressed.value && pointerType === 'touch')) {
+      if (e.cancelable) e.preventDefault()
+    }
+  }
+
   function removeWindowListeners() {
     if (typeof window === 'undefined') return
     window.removeEventListener('pointermove', onWindowMove)
     window.removeEventListener('pointerup', onWindowUp)
     window.removeEventListener('pointercancel', onWindowCancel)
+    window.removeEventListener('touchmove', onWindowTouchMove)
   }
 
   function resetState() {
@@ -348,6 +356,9 @@ export function useNavScrubGesture(options: NavScrubGestureOptions) {
     window.addEventListener('pointermove', onWindowMove, { passive: false })
     window.addEventListener('pointerup', onWindowUp)
     window.addEventListener('pointercancel', onWindowCancel)
+    if (pointerType === 'touch') {
+      window.addEventListener('touchmove', onWindowTouchMove, { passive: false })
+    }
   }
 
   function onWindowMove(e: PointerEvent) {

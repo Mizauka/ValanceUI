@@ -40,20 +40,22 @@ interface PersistedBlogPrefs {
 }
 
 const injectedOptions = ref<ValanceThemeOptions>({})
+let activeBaseUrl: string | null = null
 
 export function setThemeOptions(options: ValanceThemeOptions): void {
   injectedOptions.value = options
 }
 
-export function normalizeBlogPath(raw: string): string {
+export function normalizeBlogPath(raw: string, baseUrl?: string): string {
   let p = raw.split('?')[0]?.split('#')[0] ?? '/'
   try {
     p = decodeURI(p)
   } catch {
     // ignore malformed URI
   }
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '')
-  if (base && base !== '/' && (p === base || p.startsWith(`${base}/`))) {
+  const resolvedBase = baseUrl ?? activeBaseUrl ?? (import.meta.env.BASE_URL || '/')
+  const base = resolvedBase.replace(/\/+$/, '')
+  while (base && base !== '/' && (p === base || p.startsWith(`${base}/`))) {
     p = p.slice(base.length) || '/'
   }
   if (p.endsWith('/index.html')) {
@@ -105,6 +107,18 @@ export function useBlogState() {
   const route = useRoute()
   const router = useRouter()
 
+  if (site.value?.base) {
+    activeBaseUrl = site.value.base
+  }
+  watch(
+    () => site.value?.base,
+    (nextBase) => {
+      if (nextBase) activeBaseUrl = nextBase
+    },
+  )
+
+  const normPath = (raw: string) => normalizeBlogPath(raw, site.value?.base)
+
   const { viewportWidth, tier, isPhone, isDual, isDesktop } = useViewportTier({
     phoneMaxWidth: 768,
     dualMaxWidth: 1080,
@@ -129,12 +143,12 @@ export function useBlogState() {
   const postsByUrl = computed<Record<string, BlogPostMeta>>(() => {
     const map: Record<string, BlogPostMeta> = {}
     for (const p of posts.value) {
-      map[normalizeBlogPath(p.url)] = p
+      map[normPath(p.url)] = p
     }
     return map
   })
 
-  const currentPath = computed(() => normalizeBlogPath(route.path))
+  const currentPath = computed(() => normPath(route.path))
   const currentPost = computed<BlogPostMeta | null>(
     () => postsByUrl.value[currentPath.value] ?? null,
   )
@@ -172,7 +186,7 @@ export function useBlogState() {
   })
 
   const adjacentPosts = computed(() => {
-    const idx = posts.value.findIndex((p) => normalizeBlogPath(p.url) === currentPath.value)
+    const idx = posts.value.findIndex((p) => normPath(p.url) === currentPath.value)
     if (idx === -1) return { prev: null as BlogPostMeta | null, next: null as BlogPostMeta | null }
     return {
       prev: idx < posts.value.length - 1 ? posts.value[idx + 1] ?? null : null,
@@ -181,7 +195,7 @@ export function useBlogState() {
   })
 
   function resolveTabMeta(path: string): TabBarItem {
-    const norm = normalizeBlogPath(path)
+    const norm = normPath(path)
     if (norm === '/') {
       return { id: '/', title: '首页', subtitle: 'HOME', icon: 'home', pinned: true }
     }
@@ -201,7 +215,7 @@ export function useBlogState() {
         tone: 'primary',
       }
     }
-    const navMatch = themeCfg.value.nav?.find((n) => normalizeBlogPath(n.link) === norm)
+    const navMatch = themeCfg.value.nav?.find((n) => normPath(n.link) === norm)
     return {
       id: norm,
       title: navMatch?.text ?? (norm === currentPath.value ? page.value.title || norm : norm),
@@ -281,8 +295,8 @@ export function useBlogState() {
   }
 
   function getNavOrderIndex(path: string): number {
-    const norm = normalizeBlogPath(path)
-    const navLinks = (themeCfg.value.nav ?? []).map((n) => normalizeBlogPath(n.link))
+    const norm = normPath(path)
+    const navLinks = (themeCfg.value.nav ?? []).map((n) => normPath(n.link))
     const list = navLinks.length ? navLinks : ['/', '/archive', '/about']
     const idx = list.indexOf(norm)
     if (idx !== -1) return idx
@@ -297,7 +311,7 @@ export function useBlogState() {
   }
 
   async function openPath(path: string) {
-    const norm = normalizeBlogPath(path)
+    const norm = normPath(path)
     updateMobileDirection(currentPath.value, norm)
     if (!openTabPaths.value.includes(norm)) {
       openTabPaths.value = [...openTabPaths.value, norm]
@@ -312,7 +326,7 @@ export function useBlogState() {
   }
 
   async function closeTab(path: string) {
-    const norm = normalizeBlogPath(path)
+    const norm = normPath(path)
     if (norm === '/') return
     const idx = openTabPaths.value.indexOf(norm)
     if (idx === -1) return
@@ -326,7 +340,7 @@ export function useBlogState() {
   }
 
   async function closeOtherTabs(keepPath: string) {
-    const norm = normalizeBlogPath(keepPath)
+    const norm = normPath(keepPath)
     openTabPaths.value = norm === '/' ? ['/'] : ['/', norm]
     if (currentPath.value !== norm) {
       await router.go(withBase(norm))
@@ -432,11 +446,11 @@ export function useBlogState() {
   }
 
   function saveScroll(path: string, top: number) {
-    scrollPositions.set(normalizeBlogPath(path), top)
+    scrollPositions.set(normPath(path), top)
   }
 
   function getScroll(path: string): number {
-    return scrollPositions.get(normalizeBlogPath(path)) ?? 0
+    return scrollPositions.get(normPath(path)) ?? 0
   }
 
   watch(currentPath, (next, prev) => {

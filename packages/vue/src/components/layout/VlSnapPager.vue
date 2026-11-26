@@ -28,6 +28,7 @@ const visited = ref<Set<string>>(new Set([props.modelValue]))
 let resizeObserver: ResizeObserver | null = null
 let settleTimer: ReturnType<typeof setTimeout> | null = null
 let programmaticTargetIdx: number | null = null
+let lastMeasuredWidth = 0
 
 const activeIndex = computed(() => {
   const idx = props.pages.indexOf(props.modelValue)
@@ -44,6 +45,7 @@ function scrollToIndex(idx: number, instant: boolean) {
   if (!el) return
   const w = el.clientWidth
   if (w <= 0) return
+  lastMeasuredWidth = w
   const targetLeft = idx * w
   if (instant) {
     programmaticTargetIdx = null
@@ -101,7 +103,7 @@ watch(
 )
 
 watch(
-  () => props.pages,
+  () => props.pages.join('\0'),
   () => {
     nextTick(() => scrollToIndex(activeIndex.value, true))
   },
@@ -110,7 +112,14 @@ watch(
 onMounted(() => {
   nextTick(() => scrollToIndex(activeIndex.value, true))
   if (typeof ResizeObserver !== 'undefined' && scrollerRef.value) {
-    resizeObserver = new ResizeObserver(() => scrollToIndex(activeIndex.value, true))
+    resizeObserver = new ResizeObserver(() => {
+      const el = scrollerRef.value
+      if (!el) return
+      const w = el.clientWidth
+      if (w > 0 && w !== lastMeasuredWidth) {
+        scrollToIndex(activeIndex.value, true)
+      }
+    })
     resizeObserver.observe(scrollerRef.value)
   }
 })
@@ -165,6 +174,7 @@ onBeforeUnmount(() => {
 }
 
 .vl-snap-pager.no-swipe {
+  scroll-snap-type: none;
   touch-action: pan-y;
 }
 

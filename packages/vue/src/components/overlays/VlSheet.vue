@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, type CSSProperties } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
 
-let sheetInstanceSeq = 0
 const isClient = typeof window !== 'undefined'
 
 const props = withDefaults(
@@ -46,18 +45,8 @@ const emit = defineEmits<{
   (e: 'closed'): void
 }>()
 
-const timelineName = `--vl-sheet-tl-${++sheetInstanceSeq}`
-
 const sheetRef = ref<HTMLElement | null>(null)
-const nativeScrollerRef = ref<HTMLElement | null>(null)
-const nativeDriverRef = ref<HTMLElement | null>(null)
-const isNativeTouchScroll = ref(false)
-const nativeMounted = ref(props.open)
-const nativeBackdropRatio = ref(props.open ? 1 : 0)
-const snapDismissPx = ref(360)
-const nativeAnimMode = ref<'open-a' | 'open-b' | 'close-a' | 'close-b' | null>(null)
-const nativeAnimStartOffset = ref('0%')
-const nativeAnimStartOpacity = ref(1)
+const scrollAreaRef = ref<InstanceType<typeof VlScrollArea> | null>(null)
 const isDragging = ref(false)
 const dismissing = ref(false)
 const dragOffsetX = ref(0)
@@ -75,40 +64,19 @@ let dragVelocityX = 0
 let dragVelocityY = 0
 let dragStartHeight = 0
 let dragStartDetent: 'half' | 'full' = 'half'
-let touchHeadMode: 'undecided' | 'native-dismiss' | 'detent-drag' = 'undecided'
+let bodyStartX = 0
+let bodyStartY = 0
+let bodyStartTime = 0
+let bodyPullActive = false
+let bodyLockedAsInnerScroll = false
 let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
-let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
-let nativeDriverTimer: ReturnType<typeof setTimeout> | null = null
-let nativeDriverRaf: number | null = null
-let nativeAnimToken = 0
-let awaitingDriverEndToken = 0
-let nativeDriverParity: 'a' | 'b' = 'a'
-let coarseMql: MediaQueryList | null = null
-let sheetRo: ResizeObserver | null = null
-
-const hasCssScrollTimeline =
-  typeof CSS !== 'undefined' &&
-  typeof CSS.supports === 'function' &&
-  CSS.supports('animation-timeline: scroll()') &&
-  CSS.supports('timeline-scope: --vl-t')
-
-function updatePointerMode() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    isNativeTouchScroll.value = false
-    return
-  }
-  isNativeTouchScroll.value = window.matchMedia('(pointer: coarse)').matches
-}
-
-const nativeDismissStyle = computed(() =>
-  props.placement === 'bottom'
-    ? { width: '100%', height: `${snapDismissPx.value}px`, flexBasis: `${snapDismissPx.value}px` }
-    : { width: `${snapDismissPx.value}px`, height: '100%', flexBasis: `${snapDismissPx.value}px` },
-)
+let settleRafId: number | null = null
 
 const halfPx = computed(() => Math.round(hostViewportHeight.value * props.halfRatio))
-const fullPx = computed(() => Math.max(halfPx.value + 80, Math.round(hostViewportHeight.value * props.fullRatio)))
+const fullPx = computed(() =>
+  Math.max(halfPx.value + 80, Math.round(hostViewportHeight.value * props.fullRatio)),
+)
 
 function syncViewportHeight() {
   if (props.contained) {
@@ -130,6 +98,9 @@ function setDetent(next: 'half' | 'full') {
 }
 
 function toggleDetent() {
+  cancelSettleRaf()
+  dragHeightPx.value = null
+  dragOffsetY.value = 0
   setDetent(internalDetent.value === 'full' ? 'half' : 'full')
 }
 
@@ -140,212 +111,10 @@ watch(
   },
 )
 
-function measureSheetDim(): number {
-  syncViewportHeight()
-  const sheet = sheetRef.value
-  if (!sheet) return 360
-  const raw = props.placement === 'bottom' ? sheet.offsetHeight : sheet.offsetWidth
-  return raw > 0 ? raw : 360
-}
-
-function detachSheetObserver() {
-  sheetRo?.disconnect()
-  sheetRo = null
-}
-
-function attachSheetObserver() {
-  detachSheetObserver()
-  if (!isNativeTouchScroll.value || !sheetRef.value || typeof ResizeObserver === 'undefined') return
-  sheetRo = new ResizeObserver(() => {
-    if (!nativeMounted.value) return
-    const next = measureSheetDim()
-    if (Math.abs(next - snapDismissPx.value) <= 1) return
-    snapDismissPx.value = next
-    if (props.open && !isDragging.value && nativeAnimMode.value === null && props.placement !== 'left') {
-      nextTick(() => {
-        const m = getNativeMetrics()
-        if (m && nativeAnimMode.value === null) {
-          setNativeScrollInstant(m.openPos)
-          nativeBackdropRatio.value = 1
-        }
-      })
-    }
-  })
-  sheetRo.observe(sheetRef.value)
-}
-
-function getNativeMetrics() {
-  const scroller = nativeScrollerRef.value
-  if (!scroller) return null
-  if (props.placement === 'bottom') {
-    const max = Math.max(1, scroller.scrollHeight - scroller.clientHeight)
-    return {
-      axis: 'top' as const,
-      current: scroller.scrollTop,
-      openPos: max,
-      closePos: 0,
-      ratio: Math.max(0, Math.min(1, scroller.scrollTop / max)),
-    }
-  }
-  const max = Math.max(1, scroller.scrollWidth - scroller.clientWidth)
-  if (props.placement === 'left') {
-    return {
-      axis: 'left' as const,
-      current: scroller.scrollLeft,
-      openPos: 0,
-      closePos: max,
-      ratio: Math.max(0, Math.min(1, 1 - scroller.scrollLeft / max)),
-    }
-  }
-  return {
-    axis: 'left' as const,
-    current: scroller.scrollLeft,
-    openPos: max,
-    closePos: 0,
-    ratio: Math.max(0, Math.min(1, scroller.scrollLeft / max)),
-  }
-}
-
-function setNativeScrollInstant(pos: number) {
-  const scroller = nativeScrollerRef.value
-  if (!scroller) return
-  if (props.placement === 'bottom') scroller.scrollTop = pos
-  else scroller.scrollLeft = pos
-}
-
-function clearNativeDriverTimers() {
-  if (nativeDriverTimer !== null) {
-    clearTimeout(nativeDriverTimer)
-    nativeDriverTimer = null
-  }
-  if (nativeDriverRaf !== null && typeof cancelAnimationFrame === 'function') {
-    cancelAnimationFrame(nativeDriverRaf)
-    nativeDriverRaf = null
-  }
-}
-
-function finishNativeDriverAnim(token: number) {
-  if (token !== nativeAnimToken) return
-  clearNativeDriverTimers()
-  awaitingDriverEndToken = 0
-  const mode = nativeAnimMode.value
-  nativeAnimMode.value = null
-  if (nativeDriverRef.value) {
-    nativeDriverRef.value.scrollLeft = 0
-  }
-  if (mode?.startsWith('close') && !props.open) {
-    detachSheetObserver()
-    nativeMounted.value = false
-    nativeBackdropRatio.value = 0
-    emit('closed')
-  } else if (mode?.startsWith('open')) {
-    nativeBackdropRatio.value = 1
-  }
-}
-
-function onNativeDriverScrollEnd() {
-  const driver = nativeDriverRef.value
-  if (!driver || !nativeAnimMode.value) return
-  if (awaitingDriverEndToken !== nativeAnimToken) return
-  if (driver.scrollLeft <= 4) return
-  finishNativeDriverAnim(nativeAnimToken)
-}
-
-async function runNativeTimelineAnim(direction: 'open' | 'close') {
-  const token = ++nativeAnimToken
-  clearNativeDriverTimers()
-  awaitingDriverEndToken = 0
-
-  if (!hasCssScrollTimeline) {
-    // Fallback if engine supports coarse pointer without CSS scroll-timeline
-    if (direction === 'open') {
-      nativeBackdropRatio.value = 1
-      const m = getNativeMetrics()
-      if (m) setNativeScrollInstant(m.openPos)
-    } else {
-      detachSheetObserver()
-      nativeMounted.value = false
-      nativeBackdropRatio.value = 0
-    }
-    return
-  }
-
-  nativeDriverParity = nativeDriverParity === 'a' ? 'b' : 'a'
-  const driver = nativeDriverRef.value
-  if (driver) driver.scrollLeft = 0
-
-  if (direction === 'open') {
-    nativeAnimStartOffset.value = offscreenPercent()
-    nativeAnimStartOpacity.value = 0
-  } else {
-    const m = getNativeMetrics()
-    const visRatio = m ? m.ratio : 1
-    const closedFrac = 1 - visRatio
-    const sign = props.placement === 'left' ? -1 : 1
-    nativeAnimStartOffset.value = `${(sign * closedFrac * 100).toFixed(2)}%`
-    nativeAnimStartOpacity.value = visRatio
-  }
-
-  nativeAnimMode.value = `${direction}-${nativeDriverParity}`
-  await nextTick()
-  if (token !== nativeAnimToken) return
-
-  const activeDriver = nativeDriverRef.value
-  if (!activeDriver || typeof activeDriver.scrollTo !== 'function' || typeof requestAnimationFrame !== 'function') {
-    finishNativeDriverAnim(token)
-    return
-  }
-
-  const travel = Math.max(activeDriver.scrollWidth - activeDriver.clientWidth, 1)
-  nativeDriverRaf = requestAnimationFrame(() => {
-    nativeDriverRaf = null
-    if (token !== nativeAnimToken || !nativeDriverRef.value) return
-    awaitingDriverEndToken = token
-    nativeDriverRef.value.scrollTo({ left: travel, behavior: 'smooth' })
-  })
-  nativeDriverTimer = setTimeout(() => {
-    finishNativeDriverAnim(token)
-  }, 640)
-}
-
-function offscreenPercent(): string {
-  if (props.placement === 'left') return '-100%'
-  return '100%'
-}
-
-function finalizeNativeScroll() {
-  if (nativeSettleTimer !== null) {
-    clearTimeout(nativeSettleTimer)
-    nativeSettleTimer = null
-  }
-  isDragging.value = false
-  if (nativeAnimMode.value !== null) return
-  const m = getNativeMetrics()
-  if (!m) return
-  nativeBackdropRatio.value = m.ratio
-
-  if (m.ratio < 0.45 && props.open) {
-    detachSheetObserver()
-    nativeMounted.value = false
-    close()
-    emit('closed')
-  }
-}
-
-function onNativeScroll() {
-  if (nativeAnimMode.value !== null) return
-  const m = getNativeMetrics()
-  if (!m) return
-  nativeBackdropRatio.value = m.ratio
-  isDragging.value = true
-  if (nativeSettleTimer !== null) clearTimeout(nativeSettleTimer)
-  nativeSettleTimer = setTimeout(finalizeNativeScroll, 140)
-}
-
-function onNativeBackdropClick(e: MouseEvent) {
-  if (!props.closeOnBackdrop) return
-  if (e.target === e.currentTarget) {
-    close()
+function cancelSettleRaf() {
+  if (settleRafId !== null && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(settleRafId)
+    settleRafId = null
   }
 }
 
@@ -376,11 +145,10 @@ useBackHandler(
 
 watch(
   () => props.open,
-  async (isOpen) => {
-    const token = ++nativeAnimToken
-    clearNativeDriverTimers()
+  (isOpen) => {
     if (isOpen) {
       syncViewportHeight()
+      cancelSettleRaf()
       internalDetent.value = props.detent
       dragHeightPx.value = null
       dismissing.value = false
@@ -388,79 +156,9 @@ watch(
       isDragging.value = false
       dragOffsetX.value = 0
       dragOffsetY.value = 0
-      if (isNativeTouchScroll.value) {
-        nativeMounted.value = true
-        nativeBackdropRatio.value = 0
-        await nextTick()
-        if (token !== nativeAnimToken || !props.open) return
-        snapDismissPx.value = measureSheetDim()
-        await nextTick()
-        if (token !== nativeAnimToken || !props.open) return
-        attachSheetObserver()
-        const m = getNativeMetrics()
-        if (m) setNativeScrollInstant(m.openPos)
-        await runNativeTimelineAnim('open')
-      }
-    } else if (isNativeTouchScroll.value && nativeMounted.value) {
-      await runNativeTimelineAnim('close')
     }
   },
 )
-
-const nativeRootStyle = computed<CSSProperties>(() =>
-  hasCssScrollTimeline
-    ? ({ timelineScope: timelineName } as unknown as CSSProperties)
-    : {},
-)
-
-const nativeDriverStyle = computed<CSSProperties>(() =>
-  hasCssScrollTimeline
-    ? ({ scrollTimelineName: timelineName } as unknown as CSSProperties)
-    : {},
-)
-
-const nativeBackdropStyle = computed<CSSProperties>(() => {
-  if (nativeAnimMode.value && hasCssScrollTimeline) {
-    return {
-      '--vl-sheet-op-from': String(nativeAnimStartOpacity.value),
-      animationTimeline: timelineName,
-    } as unknown as CSSProperties
-  }
-  return { opacity: nativeBackdropRatio.value }
-})
-
-const nativeScrollerStyle = computed<CSSProperties>(() => {
-  if (!nativeAnimMode.value || !hasCssScrollTimeline) return {}
-  const axisX = props.placement !== 'bottom'
-  const isClosing = nativeAnimMode.value.startsWith('close')
-  const fromVal = nativeAnimStartOffset.value
-  const toVal = isClosing ? offscreenPercent() : '0%'
-  return {
-    '--vl-sheet-from-x': axisX ? fromVal : '0%',
-    '--vl-sheet-from-y': axisX ? '0%' : fromVal,
-    '--vl-sheet-to-x': axisX ? toVal : '0%',
-    '--vl-sheet-to-y': axisX ? '0%' : toVal,
-    animationTimeline: timelineName,
-  } as unknown as CSSProperties
-})
-
-const nativeScrollerClass = computed(() => {
-  const list: string[] = [`place-${props.placement}`]
-  if (props.contained) list.push('contained')
-  if (nativeAnimMode.value) {
-    const parity = nativeAnimMode.value.endsWith('-a') ? 'a' : 'b'
-    list.push(`is-anim-${parity}`, 'is-animating')
-  }
-  return list
-})
-
-const nativeBackdropAnimClass = computed(() => {
-  if (!nativeAnimMode.value) return undefined
-  const parity = nativeAnimMode.value.endsWith('-a') ? 'a' : 'b'
-  return nativeAnimMode.value.startsWith('open')
-    ? `is-bd-open-${parity}`
-    : `is-bd-close-${parity}`
-})
 
 const sheetDynamicStyle = computed(() => {
   const base: Record<string, string> = {}
@@ -478,18 +176,33 @@ const sheetDynamicStyle = computed(() => {
       base.maxHeight = props.maxHeight
     }
     base['--vl-sheet-max-w'] = props.maxWidth
-    if ((isDragging.value || dismissing.value) && dragOffsetY.value > 0) {
+    if (dragOffsetY.value > 0 && (isDragging.value || dismissing.value || settleRafId !== null)) {
       base.transform = `translate3d(0, ${dragOffsetY.value}px, 0)`
       if (isDragging.value) base.transition = 'none'
     }
   } else {
     base.width = props.width
-    if ((isDragging.value || dismissing.value) && dragOffsetX.value !== 0) {
+    if (dragOffsetX.value !== 0 && (isDragging.value || dismissing.value || settleRafId !== null)) {
       base.transform = `translate3d(${dragOffsetX.value}px, 0, 0)`
       if (isDragging.value) base.transition = 'none'
     }
   }
   return base
+})
+
+const backdropDragStyle = computed(() => {
+  if (!isDragging.value) return undefined
+  const dim =
+    props.placement === 'bottom'
+      ? sheetRef.value?.offsetHeight || 420
+      : sheetRef.value?.offsetWidth || 360
+  const offset = props.placement === 'bottom' ? dragOffsetY.value : Math.abs(dragOffsetX.value)
+  if (offset <= 0) return undefined
+  const ratio = Math.max(0.05, 1 - offset / Math.max(1, dim))
+  return {
+    opacity: ratio,
+    transition: 'none',
+  }
 })
 
 function onBeforeEnter(el: Element) {
@@ -518,7 +231,7 @@ function onEnter(el: Element, done: () => void) {
   const onEnd = (e: TransitionEvent) => {
     if (e.target === htmlEl && e.propertyName === 'transform') finish()
   }
-  const timer = window.setTimeout(finish, durMs + 80)
+  const timer = window.setTimeout(finish, durMs + 100)
   htmlEl.addEventListener('transitionend', onEnd)
   activeAnimCleanup = () => {
     if (enterRaf !== null && typeof cancelAnimationFrame === 'function') {
@@ -536,7 +249,7 @@ function onEnter(el: Element, done: () => void) {
     htmlEl.style.transform = 'translate3d(0, 0, 0)'
   }
 
-  // Defer one paint frame so heavy forms (like TVP forms) never coalesce initial offscreen frame away
+  // Defer one animation frame so heavy sheet children never coalesce away the initial offscreen paint
   if (typeof requestAnimationFrame === 'function') {
     enterRaf = requestAnimationFrame(() => {
       void htmlEl.offsetHeight
@@ -576,7 +289,7 @@ function onLeave(el: Element, done: () => void) {
       : htmlEl.offsetWidth || 360
   const traveled = dismissFromOffset ? Math.abs(dismissFromOffset.px) : 0
   const remainRatio = Math.max(0.25, Math.min(1, 1 - traveled / Math.max(1, totalDim)))
-  const durMs = Math.round(Math.max(280, (310 + totalDim * 0.15) * remainRatio))
+  const durMs = Math.round(Math.max(260, (310 + totalDim * 0.15) * remainRatio))
 
   void htmlEl.offsetHeight
   let settled = false
@@ -601,6 +314,7 @@ function onLeave(el: Element, done: () => void) {
 
 function onAfterLeave() {
   clearActiveAnim()
+  cancelSettleRaf()
   dismissing.value = false
   dismissFromOffset = null
   dragOffsetX.value = 0
@@ -628,13 +342,30 @@ function applyExpandableVerticalDrag(dy: number) {
   }
 }
 
+function releaseWithSmoothTransition() {
+  isDragging.value = false
+  cancelSettleRaf()
+  if (typeof requestAnimationFrame === 'function') {
+    settleRafId = requestAnimationFrame(() => {
+      settleRafId = null
+      dragHeightPx.value = null
+      dragOffsetX.value = 0
+      dragOffsetY.value = 0
+    })
+  } else {
+    dragHeightPx.value = null
+    dragOffsetX.value = 0
+    dragOffsetY.value = 0
+  }
+}
+
 function settleExpandableVerticalDrag() {
   const half = halfPx.value
   const full = fullPx.value
   const curH = dragHeightPx.value ?? (dragStartDetent === 'full' ? full : half)
   const downOffset = dragOffsetY.value
 
-  if (downOffset > 0 && (dragVelocityY > 0.45 || downOffset > Math.min(140, half * 0.25))) {
+  if (downOffset > 0 && (dragVelocityY > 0.42 || downOffset > Math.min(140, half * 0.24))) {
     dismissFromOffset = { axis: 'Y', px: downOffset }
     dismissing.value = true
     isDragging.value = false
@@ -643,79 +374,25 @@ function settleExpandableVerticalDrag() {
     return
   }
 
-  dragHeightPx.value = null
-  dragOffsetY.value = 0
-  isDragging.value = false
-
-  if (dragStartDetent === 'full' && downOffset === 0 && dragVelocityY > 0.75 && curH < half + 40) {
-    setDetent('half')
-    return
+  let nextDetent: 'half' | 'full'
+  if (dragStartDetent === 'full' && downOffset === 0 && dragVelocityY > 0.7 && curH < half + 40) {
+    nextDetent = 'half'
+  } else if (dragVelocityY < -0.35) {
+    nextDetent = 'full'
+  } else if (dragVelocityY > 0.35) {
+    nextDetent = 'half'
+  } else {
+    nextDetent = curH >= (half + full) / 2 ? 'full' : 'half'
   }
 
-  if (dragVelocityY < -0.35) {
-    setDetent('full')
-    return
-  }
-  if (dragVelocityY > 0.35) {
-    setDetent('half')
-    return
-  }
-
-  setDetent(curH >= (half + full) / 2 ? 'full' : 'half')
-}
-
-function onTouchHeadStart(e: TouchEvent) {
-  if (!isNativeTouchScroll.value || !props.expandable || props.placement !== 'bottom') return
-  if (e.touches.length !== 1) return
-  syncViewportHeight()
-  const t = e.touches[0]!
-  dragStartY = t.clientY
-  dragLastY = t.clientY
-  dragLastTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
-  dragVelocityY = 0
-  dragStartDetent = internalDetent.value
-  dragStartHeight = dragStartDetent === 'full' ? fullPx.value : halfPx.value
-  touchHeadMode = 'undecided'
-}
-
-function onTouchHeadMove(e: TouchEvent) {
-  if (!isNativeTouchScroll.value || !props.expandable || props.placement !== 'bottom') return
-  if (e.touches.length !== 1) return
-  const t = e.touches[0]!
-  const dy = t.clientY - dragStartY
-
-  if (touchHeadMode === 'undecided') {
-    if (Math.abs(dy) < 6) return
-    if (dragStartDetent === 'half' && dy > 0) {
-      touchHeadMode = 'native-dismiss'
-      return
-    }
-    touchHeadMode = 'detent-drag'
-    isDragging.value = true
-  }
-
-  if (touchHeadMode === 'detent-drag') {
-    if (e.cancelable) e.preventDefault()
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    const dt = Math.max(1, now - dragLastTime)
-    dragVelocityY = (t.clientY - dragLastY) / dt
-    dragLastY = t.clientY
-    dragLastTime = now
-    applyExpandableVerticalDrag(dy)
-  }
-}
-
-function onTouchHeadEnd() {
-  if (touchHeadMode !== 'detent-drag') {
-    touchHeadMode = 'undecided'
-    return
-  }
-  touchHeadMode = 'undecided'
-  settleExpandableVerticalDrag()
+  setDetent(nextDetent)
+  // Keep current height/offset for 1 animation frame after removing .dragging so CSS transition catches it smoothly
+  releaseWithSmoothTransition()
 }
 
 function onHandlePointerDown(e: PointerEvent) {
   if (e.button !== 0 || typeof window === 'undefined') return
+  cancelSettleRaf()
   syncViewportHeight()
   isDragging.value = true
   dragStartX = e.clientX
@@ -772,22 +449,16 @@ function cleanupDrag() {
   window.removeEventListener('pointercancel', onHandlePointerUp)
 }
 
-function onHandlePointerUp() {
-  if (!isDragging.value) return
-  cleanupDrag()
-  if (props.expandable && props.placement === 'bottom') {
-    settleExpandableVerticalDrag()
-    return
-  }
+function finalizeNonExpandableDrag() {
   const sheetHeight = sheetRef.value?.offsetHeight || 420
   const sheetWidth = sheetRef.value?.offsetWidth || 360
   let shouldDismiss = false
   if (props.placement === 'bottom') {
-    shouldDismiss = dragVelocityY > 0.45 || dragOffsetY.value > Math.min(160, sheetHeight * 0.28)
+    shouldDismiss = dragVelocityY > 0.42 || dragOffsetY.value > Math.min(160, sheetHeight * 0.26)
   } else if (props.placement === 'left') {
-    shouldDismiss = dragVelocityX < -0.45 || Math.abs(dragOffsetX.value) > Math.min(160, sheetWidth * 0.3)
+    shouldDismiss = dragVelocityX < -0.42 || Math.abs(dragOffsetX.value) > Math.min(160, sheetWidth * 0.3)
   } else {
-    shouldDismiss = dragVelocityX > 0.45 || dragOffsetX.value > Math.min(160, sheetWidth * 0.3)
+    shouldDismiss = dragVelocityX > 0.42 || dragOffsetX.value > Math.min(160, sheetWidth * 0.3)
   }
   if (shouldDismiss) {
     dismissFromOffset =
@@ -799,9 +470,95 @@ function onHandlePointerUp() {
     close()
     return
   }
-  isDragging.value = false
-  dragOffsetX.value = 0
-  dragOffsetY.value = 0
+  releaseWithSmoothTransition()
+}
+
+function onHandlePointerUp() {
+  if (!isDragging.value) return
+  cleanupDrag()
+  if (props.expandable && props.placement === 'bottom') {
+    settleExpandableVerticalDrag()
+    return
+  }
+  finalizeNonExpandableDrag()
+}
+
+function onBodyTouchStart(e: TouchEvent) {
+  if (props.placement !== 'bottom' || e.touches.length !== 1) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest('input, textarea, select, [data-no-sheet-drag], .vl-slider, .vl-clock-svg, .vl-calendar')) {
+    bodyLockedAsInnerScroll = true
+    return
+  }
+  const t = e.touches[0]!
+  bodyStartX = t.clientX
+  bodyStartY = t.clientY
+  bodyStartTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  bodyPullActive = false
+  bodyLockedAsInnerScroll = false
+}
+
+function onBodyTouchMove(e: TouchEvent) {
+  if (props.placement !== 'bottom' || e.touches.length !== 1 || bodyLockedAsInnerScroll) return
+  const t = e.touches[0]!
+  const dx = t.clientX - bodyStartX
+  const dy = t.clientY - bodyStartY
+
+  if (!bodyPullActive) {
+    if (Math.hypot(dx, dy) < 8) return
+    if (Math.abs(dx) > Math.abs(dy)) {
+      bodyLockedAsInnerScroll = true
+      return
+    }
+    const vp = scrollAreaRef.value?.getViewport()
+    const atTop = !vp || vp.scrollTop <= 1
+    if (dy > 0 && atTop) {
+      cancelSettleRaf()
+      syncViewportHeight()
+      bodyPullActive = true
+      isDragging.value = true
+      dragStartY = bodyStartY
+      dragLastY = bodyStartY
+      dragLastTime = bodyStartTime
+      dragVelocityY = 0
+      dragOffsetY.value = 0
+      dragStartDetent = internalDetent.value
+      dragStartHeight = dragStartDetent === 'full' ? fullPx.value : halfPx.value
+      if (props.expandable) {
+        dragHeightPx.value = dragStartHeight
+      }
+    } else {
+      bodyLockedAsInnerScroll = true
+      return
+    }
+  }
+
+  if (e.cancelable) e.preventDefault()
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const dt = Math.max(1, now - dragLastTime)
+  dragVelocityY = (t.clientY - dragLastY) / dt
+  dragLastY = t.clientY
+  dragLastTime = now
+  const rawDy = t.clientY - dragStartY
+  if (props.expandable) {
+    applyExpandableVerticalDrag(rawDy)
+  } else {
+    dragOffsetY.value = Math.max(0, rawDy)
+  }
+}
+
+function onBodyTouchEnd() {
+  if (!bodyPullActive) {
+    bodyLockedAsInnerScroll = false
+    return
+  }
+  bodyPullActive = false
+  bodyLockedAsInnerScroll = false
+  if (props.expandable) {
+    settleExpandableVerticalDrag()
+  } else {
+    finalizeNonExpandableDrag()
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -811,180 +568,32 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  updatePointerMode()
-  if (isNativeTouchScroll.value && props.open) {
-    nativeMounted.value = true
-    nextTick(() => {
-      snapDismissPx.value = measureSheetDim()
-      nextTick(() => {
-        attachSheetObserver()
-        const m = getNativeMetrics()
-        if (m) {
-          setNativeScrollInstant(m.openPos)
-          nativeBackdropRatio.value = 1
-        }
-      })
-    })
-  }
+  syncViewportHeight()
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', onKeydown)
-    if (typeof window.matchMedia === 'function') {
-      coarseMql = window.matchMedia('(pointer: coarse)')
-      coarseMql.addEventListener?.('change', updatePointerMode)
-    }
+    window.addEventListener('resize', syncViewportHeight, { passive: true })
   }
 })
 
 onBeforeUnmount(() => {
-  nativeAnimToken++
   clearActiveAnim()
-  clearNativeDriverTimers()
+  cancelSettleRaf()
   cleanupDrag()
-  detachSheetObserver()
-  if (nativeSettleTimer !== null) {
-    clearTimeout(nativeSettleTimer)
-    nativeSettleTimer = null
-  }
-  coarseMql?.removeEventListener?.('change', updatePointerMode)
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onKeydown)
+    window.removeEventListener('resize', syncViewportHeight)
   }
 })
 </script>
 
 <template>
   <Teleport to="body" :disabled="contained || !isClient">
-  <!-- ==================== NATIVE 120Hz SCROLL-SNAP + TIMELINE SHEET (TOUCH) ==================== -->
-  <template v-if="isNativeTouchScroll">
-    <div
-      v-if="nativeMounted"
-      class="vl-sheet-native-root"
-      :class="{ contained }"
-      :style="nativeRootStyle"
-    >
-      <div
-        v-if="hasCssScrollTimeline"
-        ref="nativeDriverRef"
-        class="vl-sheet-driver"
-        aria-hidden="true"
-        :style="nativeDriverStyle"
-        @scrollend="onNativeDriverScrollEnd"
-      >
-        <div class="vl-sheet-driver-spacer" />
-      </div>
-
-      <div
-        class="vl-sheet-backdrop shape-rect native-scroll"
-        :class="[{ contained }, nativeBackdropAnimClass]"
-        :style="nativeBackdropStyle"
-        aria-hidden="true"
-      />
-
-      <div
-        ref="nativeScrollerRef"
-        class="vl-sheet-native-scroller"
-        :class="nativeScrollerClass"
-        :style="nativeScrollerStyle"
-        @scroll.passive="onNativeScroll"
-        @scrollend="finalizeNativeScroll"
-      >
-        <!-- Dismiss snap stop BEFORE sheet for bottom / right placements -->
-        <div
-          v-if="placement !== 'left'"
-          class="vl-sheet-snap-dismiss"
-          :style="nativeDismissStyle"
-          @click="onNativeBackdropClick"
-        />
-
-        <!-- Present snap stop holding the actual sheet -->
-        <div
-          class="vl-sheet-snap-present"
-          :class="`place-${placement}`"
-          @click="onNativeBackdropClick"
-        >
-          <section
-            ref="sheetRef"
-            class="vl-sheet shape-rect native-scroll"
-            :class="[`place-${placement}`, `t-${accentTone}`, { contained, expandable, dragging: isDragging }]"
-            :style="sheetDynamicStyle"
-            role="dialog"
-            aria-modal="true"
-            :aria-label="title"
-          >
-            <div
-              class="vl-sheet-head shape-rect native-scroll"
-              @touchstart="onTouchHeadStart"
-              @touchmove="onTouchHeadMove"
-              @touchend="onTouchHeadEnd"
-              @touchcancel="onTouchHeadEnd"
-            >
-              <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
-                <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
-              </div>
-
-              <div class="vl-sheet-title-row">
-                <div class="vl-sheet-title-left">
-                  <span class="vl-sheet-accent shape-rect" />
-                  <h2 class="vl-sheet-title">{{ title }}</h2>
-                </div>
-
-                <div class="vl-sheet-title-right">
-                  <slot name="header-extra" />
-                  <button
-                    v-if="expandable && placement === 'bottom'"
-                    type="button"
-                    class="vl-sheet-detent-btn shape-pill"
-                    :class="{ active: internalDetent === 'full' }"
-                    :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
-                    @touchstart.stop
-                    @pointerdown.stop
-                    @click="toggleDetent"
-                  >
-                    {{ internalDetent === 'full' ? '半屏' : '全高' }}
-                  </button>
-                  <VlIconButton
-                    icon="close"
-                    size="sm"
-                    morph-on-hover
-                    title="关闭"
-                    aria-label="关闭"
-                    class="vl-sheet-close-btn"
-                    @click="close"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <VlScrollArea class="vl-sheet-scroll">
-              <div class="vl-sheet-body">
-                <slot />
-              </div>
-            </VlScrollArea>
-
-            <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
-              <slot name="footer" />
-            </footer>
-          </section>
-        </div>
-
-        <!-- Dismiss snap stop AFTER sheet for left placement -->
-        <div
-          v-if="placement === 'left'"
-          class="vl-sheet-snap-dismiss"
-          :style="nativeDismissStyle"
-          @click="onNativeBackdropClick"
-        />
-      </div>
-    </div>
-  </template>
-
-  <!-- ==================== DESKTOP / FINE-POINTER SHEET ==================== -->
-  <template v-else>
     <Transition name="sheet-backdrop">
       <div
         v-if="open"
         class="vl-sheet-backdrop shape-rect"
         :class="{ contained }"
+        :style="backdropDragStyle"
         @click="closeOnBackdrop && close()"
       />
     </Transition>
@@ -1051,90 +660,29 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <VlScrollArea class="vl-sheet-scroll">
-          <div class="vl-sheet-body">
-            <slot />
-          </div>
-        </VlScrollArea>
+        <div
+          class="vl-sheet-scroll-wrap"
+          @touchstart.passive="onBodyTouchStart"
+          @touchmove="onBodyTouchMove"
+          @touchend="onBodyTouchEnd"
+          @touchcancel="onBodyTouchEnd"
+        >
+          <VlScrollArea ref="scrollAreaRef" class="vl-sheet-scroll">
+            <div class="vl-sheet-body">
+              <slot />
+            </div>
+          </VlScrollArea>
+        </div>
 
         <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect">
           <slot name="footer" />
         </footer>
       </section>
     </Transition>
-  </template>
   </Teleport>
 </template>
 
-<style>
-@property --vl-sheet-from-x {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
-
-@property --vl-sheet-from-y {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 100%;
-}
-
-@property --vl-sheet-to-x {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
-
-@property --vl-sheet-to-y {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
-
-@property --vl-sheet-op-from {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-</style>
-
 <style scoped>
-.vl-sheet-native-root {
-  position: fixed;
-  inset: 0;
-  z-index: 240;
-}
-
-.vl-sheet-native-root.contained {
-  position: absolute;
-  z-index: 65;
-}
-
-.vl-sheet-driver {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  pointer-events: none;
-  opacity: 0.001;
-  scrollbar-width: none;
-  scroll-timeline-axis: x;
-}
-
-.vl-sheet-driver::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.vl-sheet-driver-spacer {
-  width: calc(100% + 300px);
-  height: 1px;
-}
-
 .vl-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -1147,122 +695,6 @@ onBeforeUnmount(() => {
   z-index: 60;
 }
 
-.vl-sheet-backdrop.native-scroll {
-  position: absolute;
-  z-index: 0;
-  pointer-events: none;
-  will-change: opacity;
-}
-
-/* Native scroll-timeline uses linear timing because driver.scrollTo(smooth) already provides Safari's ease envelope */
-.vl-sheet-backdrop.is-bd-open-a {
-  animation-name: vl-sheet-bd-open-a;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-backdrop.is-bd-open-b {
-  animation-name: vl-sheet-bd-open-b;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-backdrop.is-bd-close-a {
-  animation-name: vl-sheet-bd-close-a;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-backdrop.is-bd-close-b {
-  animation-name: vl-sheet-bd-close-b;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-native-scroller {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  display: flex;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.vl-sheet-native-scroller::-webkit-scrollbar {
-  display: none;
-}
-
-.vl-sheet-native-scroller.is-animating {
-  pointer-events: none;
-  will-change: transform;
-}
-
-.vl-sheet-native-scroller.is-anim-a {
-  animation-name: vl-sheet-move-a;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-native-scroller.is-anim-b {
-  animation-name: vl-sheet-move-b;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-}
-
-.vl-sheet-native-scroller.place-bottom {
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scroll-snap-type: y mandatory;
-  overscroll-behavior-y: none;
-}
-
-.vl-sheet-native-scroller.place-left,
-.vl-sheet-native-scroller.place-right {
-  flex-direction: row;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: none;
-}
-
-.vl-sheet-snap-dismiss {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.vl-sheet-snap-present {
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.vl-sheet-snap-present.place-bottom {
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.vl-sheet-snap-present.place-left {
-  align-items: stretch;
-  justify-content: flex-start;
-}
-
-.vl-sheet-snap-present.place-right {
-  align-items: stretch;
-  justify-content: flex-end;
-}
-
 .vl-sheet {
   position: fixed;
   z-index: 240;
@@ -1270,45 +702,20 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background-color: var(--bg-base);
   overflow: hidden;
+  will-change: transform;
   transition: transform 0.38s cubic-bezier(0.26, 0.68, 0.28, 1);
 }
 
 .vl-sheet.expandable {
+  will-change: transform, height;
   transition:
     height 0.36s cubic-bezier(0.26, 0.68, 0.28, 1),
     transform 0.38s cubic-bezier(0.26, 0.68, 0.28, 1);
 }
 
-.vl-sheet.native-scroll.expandable {
-  transition: height 0.36s cubic-bezier(0.26, 0.68, 0.28, 1);
-}
-
-.vl-sheet.expandable.dragging,
-.vl-sheet.native-scroll.expandable.dragging {
+.vl-sheet.dragging,
+.vl-sheet.expandable.dragging {
   transition: none;
-}
-
-.vl-sheet.native-scroll {
-  position: relative;
-  left: auto;
-  right: auto;
-  top: auto;
-  bottom: auto;
-  z-index: auto;
-  transition: none;
-}
-
-.vl-sheet.native-scroll.place-bottom {
-  width: 100%;
-}
-
-.vl-sheet.native-scroll.place-left,
-.vl-sheet.native-scroll.place-right {
-  height: 100%;
-}
-
-.vl-sheet-head.native-scroll {
-  touch-action: pan-x pan-y;
 }
 
 .vl-sheet.contained {
@@ -1484,9 +891,21 @@ onBeforeUnmount(() => {
   color: var(--accent-primary-ink);
 }
 
+.vl-sheet-scroll-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .vl-sheet-scroll {
   flex: 1;
   min-height: 0;
+}
+
+.vl-sheet-scroll :deep(.csa-viewport) {
+  overscroll-behavior-y: none;
 }
 
 .vl-sheet-body {
@@ -1502,59 +921,5 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-}
-
-@keyframes vl-sheet-move-a {
-  from {
-    transform: translate3d(var(--vl-sheet-from-x, 0%), var(--vl-sheet-from-y, 100%), 0);
-  }
-  to {
-    transform: translate3d(var(--vl-sheet-to-x, 0%), var(--vl-sheet-to-y, 0%), 0);
-  }
-}
-
-@keyframes vl-sheet-move-b {
-  from {
-    transform: translate3d(var(--vl-sheet-from-x, 0%), var(--vl-sheet-from-y, 100%), 0);
-  }
-  to {
-    transform: translate3d(var(--vl-sheet-to-x, 0%), var(--vl-sheet-to-y, 0%), 0);
-  }
-}
-
-@keyframes vl-sheet-bd-open-a {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes vl-sheet-bd-open-b {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes vl-sheet-bd-close-a {
-  from {
-    opacity: var(--vl-sheet-op-from, 1);
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes vl-sheet-bd-close-b {
-  from {
-    opacity: var(--vl-sheet-op-from, 1);
-  }
-  to {
-    opacity: 0;
-  }
 }
 </style>

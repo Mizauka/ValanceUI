@@ -274,6 +274,15 @@ describe('@valance-ui/vue core components', () => {
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 160 }))
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 160 }))
     expect(expandableSheet.emitted('update:detent')?.slice(-1)[0]).toEqual(['full'])
+
+    // Pulling down from scrollTop <= 1 in sheet body collapses full -> half and releases cleanly
+    const scrollWrap = expandableSheet.find('.vl-sheet-scroll-wrap')
+    await scrollWrap.trigger('touchstart', { touches: [{ clientX: 120, clientY: 200 }] })
+    const pullDown = new Event('touchmove', { bubbles: true, cancelable: true })
+    Object.defineProperty(pullDown, 'touches', { value: [{ clientX: 120, clientY: 360 }] })
+    scrollWrap.element.dispatchEvent(pullDown)
+    await scrollWrap.trigger('touchend')
+    expect(expandableSheet.emitted('update:detent')?.slice(-1)[0]).toEqual(['half'])
   })
 
   it('renders VlActivityBar in mobile mode and emits select', async () => {

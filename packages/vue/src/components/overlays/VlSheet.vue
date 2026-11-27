@@ -33,6 +33,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'update:open', open: boolean): void
   (e: 'close'): void
+  (e: 'closed'): void
 }>()
 
 const timelineName = `--vl-sheet-tl-${++sheetInstanceSeq}`
@@ -186,6 +187,7 @@ function finishNativeDriverAnim(token: number) {
     detachSheetObserver()
     nativeMounted.value = false
     nativeBackdropRatio.value = 0
+    emit('closed')
   } else if (mode?.startsWith('open')) {
     nativeBackdropRatio.value = 1
   }
@@ -276,6 +278,7 @@ function finalizeNativeScroll() {
     detachSheetObserver()
     nativeMounted.value = false
     close()
+    emit('closed')
   }
 }
 
@@ -513,6 +516,7 @@ function onAfterLeave() {
   dismissFromOffset = null
   dragOffsetX.value = 0
   dragOffsetY.value = 0
+  emit('closed')
 }
 
 function onAnimCancel() {

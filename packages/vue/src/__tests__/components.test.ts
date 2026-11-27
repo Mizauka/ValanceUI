@@ -230,6 +230,16 @@ describe('@valance-ui/vue core components', () => {
     expect(flush.find('.vl-dock-sheet').classes()).toContain('flush')
     expect(flush.find('.vl-dock-sheet').attributes('style')).toContain('border-radius: 0px')
     expect(flush.find('.vl-dock-sheet').attributes('style')).toContain('bottom: 0px')
+
+    // Reverse bottom-pull in VlDockSheet body expands half -> full when scrolled to bottom
+    await flush.setProps({ detent: 'half' })
+    const dockBody = flush.find('.vl-dock-body-wrap')
+    await dockBody.trigger('touchstart', { touches: [{ clientX: 120, clientY: 360 }] })
+    const dockPullUp = new Event('touchmove', { bubbles: true, cancelable: true })
+    Object.defineProperty(dockPullUp, 'touches', { value: [{ clientX: 120, clientY: 200 }] })
+    dockBody.element.dispatchEvent(dockPullUp)
+    await dockBody.trigger('touchend')
+    expect(flush.emitted('update:detent')?.slice(-1)[0]).toEqual(['full'])
   })
 
   it('renders VlSheet and closes via close button or halfway swipe gesture', async () => {
@@ -283,6 +293,15 @@ describe('@valance-ui/vue core components', () => {
     scrollWrap.element.dispatchEvent(pullDown)
     await scrollWrap.trigger('touchend')
     expect(expandableSheet.emitted('update:detent')?.slice(-1)[0]).toEqual(['half'])
+
+    // Reverse bottom-pull from scroll bottom in half detent expands half -> full
+    await expandableSheet.setProps({ detent: 'half' })
+    await scrollWrap.trigger('touchstart', { touches: [{ clientX: 120, clientY: 400 }] })
+    const pullUp = new Event('touchmove', { bubbles: true, cancelable: true })
+    Object.defineProperty(pullUp, 'touches', { value: [{ clientX: 120, clientY: 220 }] })
+    scrollWrap.element.dispatchEvent(pullUp)
+    await scrollWrap.trigger('touchend')
+    expect(expandableSheet.emitted('update:detent')?.slice(-1)[0]).toEqual(['full'])
   })
 
   it('renders VlActivityBar in mobile mode and emits select', async () => {

@@ -79,6 +79,7 @@ let movedBeyondTap = false
 let resizeObserver: ResizeObserver | null = null
 let bodyStartX = 0
 let bodyStartY = 0
+let bodyStartTime = 0
 let bodyPullActive = false
 let bodyLockedAsInnerScroll = false
 
@@ -317,12 +318,19 @@ function onPointerUp() {
 
   if (!movedBeyondTap) return
 
-  if (velocityY < -0.45) {
+  if (velocityY < -0.35) {
     setDetent(props.detent === 'docked' ? 'half' : 'full')
     return
   }
-  if (velocityY > 0.45) {
+  if (velocityY > 0.38) {
     setDetent(props.detent === 'full' ? 'half' : 'docked')
+    return
+  }
+
+  const deltaFromStart = finalH - startHeight
+  const halfFullSpan = Math.max(80, fullSheetHeight.value - halfSheetHeight.value)
+  if (props.detent === 'half' && deltaFromStart > Math.min(72, halfFullSpan * 0.28)) {
+    setDetent('full')
     return
   }
 
@@ -338,9 +346,15 @@ function onPointerUp() {
 
 function onBodyTouchStart(e: TouchEvent) {
   if (props.detent === 'docked' || e.touches.length !== 1) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest('input, textarea, select, [data-no-sheet-drag], .vl-slider, .vl-clock-svg, .vl-calendar')) {
+    bodyLockedAsInnerScroll = true
+    return
+  }
   const t = e.touches[0]!
   bodyStartX = t.clientX
   bodyStartY = t.clientY
+  bodyStartTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
   bodyPullActive = false
   bodyLockedAsInnerScroll = false
 }
@@ -358,18 +372,37 @@ function onBodyTouchMove(e: TouchEvent) {
       return
     }
     const vp = scrollAreaRef.value?.getViewport()
-    const atTop = !vp || vp.scrollTop <= 1
-    if (dy > 0 && atTop) {
+    const target = e.target as HTMLElement | null
+    const innerVp = target?.closest('.csa-viewport') as HTMLElement | null
+    const canScrollInnerUp =
+      !!innerVp &&
+      innerVp !== vp &&
+      innerVp.scrollHeight > innerVp.clientHeight + 2 &&
+      innerVp.scrollTop > 1
+    const canScrollInnerDown =
+      !!innerVp &&
+      innerVp !== vp &&
+      innerVp.scrollHeight > innerVp.clientHeight + 2 &&
+      innerVp.scrollTop + innerVp.clientHeight < innerVp.scrollHeight - 2
+    const atTop = (!vp || vp.scrollTop <= 1) && !canScrollInnerUp
+    const atBottom =
+      (!vp || vp.scrollTop + vp.clientHeight >= vp.scrollHeight - 2) && !canScrollInnerDown
+
+    const canPullDown = dy > 0 && atTop
+    const canPullUp = dy < 0 && atBottom && props.detent !== 'full'
+
+    if (canPullDown || canPullUp) {
       bodyPullActive = true
       measureHost()
       isDragging.value = true
       movedBeyondTap = true
-      startY = t.clientY
+      const engagedY = bodyStartY + Math.sign(dy) * Math.min(6, Math.abs(dy))
+      startY = engagedY
       lastY = t.clientY
-      lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      lastTime = bodyStartTime
       velocityY = 0
       startHeight = getDetentHeight(props.detent)
-      dragHeight.value = startHeight
+      dragHeight.value = clampHeightWithRubberBand(startHeight - (t.clientY - engagedY))
     } else {
       bodyLockedAsInnerScroll = true
       return
@@ -491,9 +524,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Expandable Sheet Body (Pulling down at scrollTop === 0 seamlessly collapses the sheet) -->
+    <!-- Expandable Sheet Body (Pulling down at top or pulling up at bottom smoothly collapses/expands the sheet) -->
     <div
       class="vl-dock-body-wrap"
+      :class="{ collapsed: !isExpanded && !isDragging && expandRatio <= 0.01 }"
       @touchstart.passive="onBodyTouchStart"
       @touchmove="onBodyTouchMove"
       @touchend="onBodyTouchEnd"
@@ -806,12 +840,20 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  contain: layout style;
+}
+
+.vl-dock-body-wrap.collapsed {
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear 0.38s;
 }
 
 .vl-dock-scroll {
   flex: 1 1 0px;
   min-height: 0;
   overflow: hidden;
+  contain: layout style;
   transition: opacity 0.28s var(--ease-standard);
 }
 

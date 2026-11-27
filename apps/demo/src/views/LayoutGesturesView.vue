@@ -229,7 +229,7 @@ const splitRightW = ref(190)
               @toggle-right="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen"
             />
 
-            <div class="phone-canvas">
+            <div class="phone-canvas" data-drawer-drag-zone>
               <div class="gesture-banner shape-rect">
                 <strong>→ 右滑左抽屉 · ← 左滑右抽屉</strong>
                 <p>

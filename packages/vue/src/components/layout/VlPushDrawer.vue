@@ -51,9 +51,31 @@ let coarseMql: MediaQueryList | null = null
 let boundaryTouchStartX = 0
 let boundaryTouchStartY = 0
 let boundaryBlockOverscroll = false
+let boundaryTouchOwned = false
+let lastMeasuredWidth = 0
+
+function isTouchOwnedByThisShell(e: TouchEvent): boolean {
+  const target = e.target as HTMLElement | null
+  if (!shellRef.value) return false
+  // Nested VlPushDrawer shells: inner drawer owns touches started inside it
+  if (target?.closest('.vl-push-shell') !== shellRef.value) return false
+  if (props.ignoreSelector && target?.closest(props.ignoreSelector)) return false
+  if (
+    !props.ignoreSelector &&
+    target?.closest('.vl-slider, .vl-seg-track, .vl-switch-track, .vl-dock-sheet, .vl-bottom-dock, .vl-tabs-items, [data-no-drawer-gesture]')
+  ) {
+    return false
+  }
+  return true
+}
 
 function onNativeTouchStart(e: TouchEvent) {
-  if (!isNativeTouchScroll.value || e.touches.length !== 1) return
+  if (!isNativeTouchScroll.value || e.touches.length !== 1 || !isTouchOwnedByThisShell(e)) {
+    boundaryTouchOwned = false
+    return
+  }
+  programmaticScrollTarget = null
+  boundaryTouchOwned = true
   const t = e.touches[0]!
   boundaryTouchStartX = t.clientX
   boundaryTouchStartY = t.clientY
@@ -62,23 +84,30 @@ function onNativeTouchStart(e: TouchEvent) {
 
 function onNativeTouchMove(e: TouchEvent) {
   const scroller = scrollerRef.value
-  if (!isNativeTouchScroll.value || !scroller || e.touches.length !== 1) return
+  if (!boundaryTouchOwned || !isNativeTouchScroll.value || !scroller || e.touches.length !== 1) return
+  if (!isTouchOwnedByThisShell(e)) return
   const t = e.touches[0]!
   const dx = t.clientX - boundaryTouchStartX
   const dy = t.clientY - boundaryTouchStartY
+  if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
   if (Math.abs(dx) <= Math.abs(dy)) return
 
   const maxLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth)
-  const atClosedEdge = scroller.scrollLeft >= maxLeft - 1
-  const atOpenEdge = scroller.scrollLeft <= 1
+  const atRightmostEdge = scroller.scrollLeft >= maxLeft - 1
+  const atLeftmostEdge = scroller.scrollLeft <= 1
 
-  // Block reverse-direction overscroll rubber-band at closed/open boundaries
-  // while keeping valid open/close swipes 100% native 120Hz Safari scroll-snap!
-  if ((atClosedEdge && dx < 0) || (atOpenEdge && dx > 0)) {
+  // Block reverse-direction overscroll rubber-band ONLY at this shell's own outermost boundaries
+  // without blocking valid open/close swipes (including bidirectional middle -> left/right!)
+  if ((atRightmostEdge && dx < -4) || (atLeftmostEdge && dx > 4)) {
     boundaryBlockOverscroll = true
     if (e.cancelable) e.preventDefault()
-  } else if (boundaryBlockOverscroll && e.cancelable) {
-    e.preventDefault()
+  } else {
+    if (boundaryBlockOverscroll && ((atRightmostEdge && dx > 4) || (atLeftmostEdge && dx < -4))) {
+      boundaryBlockOverscroll = false
+    }
+    if (boundaryBlockOverscroll && e.cancelable) {
+      e.preventDefault()
+    }
   }
 }
 
@@ -92,10 +121,15 @@ function updatePointerMode() {
 }
 
 function measureWidth() {
+  const prevWidth = lastMeasuredWidth
   if (props.contained && shellRef.value && shellRef.value.clientWidth > 0) {
     measuredHostWidth.value = shellRef.value.clientWidth
   } else if (typeof window !== 'undefined') {
     measuredHostWidth.value = window.innerWidth
+  }
+  lastMeasuredWidth = measuredHostWidth.value
+  if (isNativeTouchScroll.value && !nativeScrolling.value && Math.abs(lastMeasuredWidth - prevWidth) > 1) {
+    nextTick(() => syncNativeScrollPosition(true))
   }
 }
 

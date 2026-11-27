@@ -7,6 +7,7 @@ import {
   VlButton,
   VlCard,
   VlDockSheet,
+  VlEmptyState,
   VlPullRefresh,
   VlPushDrawer,
   VlScrollArea,
@@ -38,12 +39,18 @@ function handlePullRefresh() {
   }, 1100)
 }
 
-// Lab 1: Push Drawer State
+// Lab 1: Bidirectional Push Drawer State (Right-swipe Left Drawer + Left-swipe Right Drawer)
 const drawerOpen = ref(false)
-const drawerWidth = ref(248)
-const drawerDragState = ref({ progress: 0, isDragging: false, velocity: 0 })
+const rightDrawerOpen = ref(false)
+const drawerWidth = ref(236)
+const drawerDragState = ref({ progress: 0, rightProgress: 0, isDragging: false, velocity: 0 })
 const drawerAct = ref('files')
 const drawerDoc = ref('s1')
+const rightInspectorMode = ref('layout')
+const rightInspectorOpts: SegmentOption<'layout' | 'tokens'>[] = [
+  { value: 'layout', label: '几何规格' },
+  { value: 'tokens', label: '物理参数' },
+]
 
 const drawerActItems: ActivityBarItem[] = [
   { id: 'files', icon: 'files', label: '目录' },
@@ -67,11 +74,11 @@ const drawerGroups: SideNavGroup[] = [
 ]
 
 // Lab 2: Dock-to-Sheet + Unified Floating Nav State
-const dockMode = ref<'unified' | 'floating-only' | 'standalone'>('unified')
-const dockModeOpts: SegmentOption<'unified' | 'floating-only' | 'standalone'>[] = [
-  { value: 'unified', label: '二合一导航+Sheet' },
-  { value: 'floating-only', label: '纯浮动胶囊导航' },
-  { value: 'standalone', label: '纯 Sheet' },
+const dockMode = ref<'unified' | 'unified-flush' | 'floating-only'>('unified')
+const dockModeOpts: SegmentOption<'unified' | 'unified-flush' | 'floating-only'>[] = [
+  { value: 'unified', label: '二合一悬浮' },
+  { value: 'unified-flush', label: '二合一贴边' },
+  { value: 'floating-only', label: '纯浮动胶囊' },
 ]
 const dockNavItems: BottomDockItem[] = [
   { id: 'read', label: '阅读', icon: 'home' },
@@ -94,21 +101,38 @@ function switchDockNav(next: string) {
 const dockDetent = ref<DockSheetDetent>('docked')
 const morphTelemetry = ref<DockSheetMorphState>({
   detent: 'docked',
-  height: 56,
+  height: 113,
   expandRatio: 0,
   morphFactor: 0,
   inset: 14,
-  radius: 28,
+  radius: 37,
   isDragging: false,
 })
 
 const detentOpts: SegmentOption<DockSheetDetent>[] = [
-  { value: 'docked', label: '停靠胶囊 Docked' },
+  { value: 'docked', label: '停靠 Docked' },
   { value: 'half', label: '半屏 Half' },
   { value: 'full', label: '全高 Full' },
 ]
 
-// Lab 3: SplitPane State
+// Lab 3: Standalone Bottom Dock Sheet (CatsOnPlains Floating vs Edge-Flush, no bottom nav)
+const soloSheetStyle = ref<'floating' | 'flush'>('floating')
+const soloSheetStyleOpts: SegmentOption<'floating' | 'flush'>[] = [
+  { value: 'floating', label: '悬浮版 (CatsOnPlains)' },
+  { value: 'flush', label: '贴边不悬浮版' },
+]
+const soloSheetDetent = ref<DockSheetDetent>('docked')
+const soloTelemetry = ref<DockSheetMorphState>({
+  detent: 'docked',
+  height: 58,
+  expandRatio: 0,
+  morphFactor: 0,
+  inset: 12,
+  radius: 29,
+  isDragging: false,
+})
+
+// Lab 4: SplitPane State
 const splitLeftOpen = ref(true)
 const splitRightOpen = ref(true)
 const splitLeftW = ref(200)
@@ -118,28 +142,34 @@ const splitRightW = ref(190)
 <template>
   <div class="demo-view">
     <div class="labs-grid">
-      <!-- LAB 1: Squeeze / Push Drawer + 1:1 Gesture -->
-      <VlCard title="实验室 1 · 挤压式侧边栏与 1:1 拖拽手势（VlPushDrawer）" subtitle="在下方手机框内任意位置向右滑动打开，向左滑动关闭，支持速度惯性回弹" accent-side="left" accent-tone="primary">
+      <!-- LAB 1: Bidirectional Squeeze / Push Drawer + 1:1 Gesture -->
+      <VlCard title="实验室 1 · 双向挤压式侧边栏（VlPushDrawer）" subtitle="向右滑打开左侧目录，向左滑打开右侧检查器；复用 1:1 拖拽与 120Hz scroll-snap 手势引擎" accent-side="left" accent-tone="primary">
         <template #extra>
-          <VlButton size="sm" variant="primary" icon="panel-left" @click="drawerOpen = !drawerOpen">
-            {{ drawerOpen ? '收起抽屉' : '推开抽屉' }}
-          </VlButton>
+          <div style="display: flex; gap: 6px">
+            <VlButton size="sm" :variant="drawerOpen ? 'primary' : 'outline'" icon="panel-left" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">
+              左侧
+            </VlButton>
+            <VlButton size="sm" :variant="rightDrawerOpen ? 'secondary' : 'outline'" icon="panel-right" @click="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen">
+              右侧
+            </VlButton>
+          </div>
         </template>
 
         <div class="telemetry-bar shape-rect">
-          <span>状态：<strong>{{ drawerOpen ? 'OPEN' : 'CLOSED' }}</strong></span>
-          <span>进度：<strong>{{ (drawerDragState.progress * 100).toFixed(0) }}%</strong></span>
-          <span>拖拽中：<strong>{{ drawerDragState.isDragging ? 'YES' : 'NO' }}</strong></span>
-          <span>速度：<strong>{{ drawerDragState.velocity.toFixed(2) }} px/ms</strong></span>
+          <span>激活：<strong>{{ rightDrawerOpen ? 'RIGHT' : drawerOpen ? 'LEFT' : 'CENTER' }}</strong></span>
+          <span>左进度：<strong>{{ (drawerDragState.progress * 100).toFixed(0) }}%</strong></span>
+          <span>右进度：<strong>{{ (drawerDragState.rightProgress * 100).toFixed(0) }}%</strong></span>
+          <span>速度：<strong>{{ drawerDragState.velocity.toFixed(2) }}</strong></span>
         </div>
 
         <div class="slider-ctrl">
-          <VlSlider v-model="drawerWidth" :min="210" :max="290" label="抽屉宽度" unit="px" />
+          <VlSlider v-model="drawerWidth" :min="200" :max="276" label="抽屉宽度" unit="px" />
         </div>
 
         <div class="phone-stage shape-rect">
           <VlPushDrawer
             v-model:open="drawerOpen"
+            v-model:right-open="rightDrawerOpen"
             :drawer-width="drawerWidth"
             contained
             @drag-state="drawerDragState = $event"
@@ -152,7 +182,7 @@ const splitRightW = ref(190)
                 mobile
               />
               <div class="drawer-inner">
-                <div class="drawer-head">章节目录</div>
+                <div class="drawer-head">左侧 · 章节目录</div>
                 <VlSideNav
                   :groups="drawerGroups"
                   :active-id="drawerDoc"
@@ -161,35 +191,69 @@ const splitRightW = ref(190)
               </div>
             </template>
 
+            <template #right-drawer>
+              <div class="drawer-inner">
+                <div class="drawer-head">右侧 · 属性检查器</div>
+                <VlSegmentedControl
+                  v-model="rightInspectorMode"
+                  :options="rightInspectorOpts"
+                  size="sm"
+                  surface="activity"
+                />
+                <div class="right-drawer-stack">
+                  <template v-if="rightInspectorMode === 'layout'">
+                    <div class="right-kv shape-rect"><span>右侧宽度</span><code>{{ drawerWidth }}px</code></div>
+                    <div class="right-kv shape-rect"><span>打开方式</span><strong>向左滑动 ←</strong></div>
+                    <div class="right-kv shape-rect"><span>合拢方式</span><strong>向右滑动 →</strong></div>
+                  </template>
+                  <template v-else>
+                    <div class="right-kv shape-rect"><span>触控帧率</span><code>120Hz scroll-snap</code></div>
+                    <div class="right-kv shape-rect"><span>桌面过渡</span><code>cubic-bezier</code></div>
+                  </template>
+                  <VlButton size="sm" variant="secondary" block @click="rightDrawerOpen = false">
+                    收起右侧栏
+                  </VlButton>
+                </div>
+              </div>
+            </template>
+
             <VlTitleBar
               mode="mobile"
               center-text="幕1 放出"
               center-active
               :left-active="drawerOpen"
-              :show-right-toggle="false"
-              @toggle-left="drawerOpen = !drawerOpen"
+              :right-active="rightDrawerOpen"
+              right-icon="panel-right"
+              right-title="切换右侧栏"
+              @toggle-left="rightDrawerOpen = false; drawerOpen = !drawerOpen"
+              @toggle-right="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen"
             />
 
             <div class="phone-canvas">
               <div class="gesture-banner shape-rect">
-                <strong>全屏任意位置向右滑动 →</strong>
+                <strong>→ 右滑左抽屉 · ← 左滑右抽屉</strong>
                 <p>
-                  基于 <code>usePushDrawerGesture</code> 的 1:1 指针跟随与牛顿迭代 <code>cubic-bezier(0.22, 1, 0.36, 1)</code> rAF 连续补间，彻底消除 iOS Safari 释放闪屏。
+                  同一套 <code>VlPushDrawer</code> + <code>usePushDrawerGesture</code> 引擎：在画布任意位置右滑呼出左侧目录，左滑呼出右侧检查器。
                 </p>
               </div>
               <p class="sample-p">
-                左侧抽屉与主画布同步以 <code>translate3d</code> 推挤位移，非覆盖遮罩，保持物理空间连贯性。
+                触控设备上通过 <code>[左抽屉 | 主舞台 | 右抽屉]</code> 三段原生 <code>scroll-snap</code> 在合成器线程跟手滑动，零掉帧。
               </p>
-              <VlButton variant="secondary" @click="drawerOpen = !drawerOpen">
-                点击或手势切换抽屉
-              </VlButton>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <VlButton size="sm" variant="primary" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">
+                  切左侧栏
+                </VlButton>
+                <VlButton size="sm" variant="secondary" @click="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen">
+                  切右侧栏
+                </VlButton>
+              </div>
             </div>
           </VlPushDrawer>
         </div>
       </VlCard>
 
-      <!-- LAB 2: Dock to Sheet (Standalone or 2-in-1 Unified with Floating Nav) -->
-      <VlCard title="实验室 2 · 二合一浮动导航 + Dock to Sheet（VlDockSheet）" subtitle="拖住上方圆形标志把手向上拉起展开 Sheet；底部常驻胶囊导航与页面切换动画并存" accent-side="left" accent-tone="secondary">
+      <!-- LAB 2: Dock to Sheet + Unified Nav (Floating vs Flush) -->
+      <VlCard title="实验室 2 · 二合一导航 + Dock to Sheet（VlDockSheet）" subtitle="拖住上方把手展开 Sheet；底部常驻导航滑块色块支持出界弹性放大且外框绝不越界" accent-side="left" accent-tone="secondary">
         <div class="lab2-controls">
           <VlSegmentedControl v-model="dockMode" :options="dockModeOpts" size="sm" surface="activity" />
           <VlSegmentedControl v-model="dockDetent" :options="detentOpts" size="sm" surface="activity" />
@@ -205,7 +269,7 @@ const splitRightW = ref(190)
         <div class="phone-stage shape-rect" style="margin-top: 10px">
           <VlTitleBar
             mode="mobile"
-            :center-text="dockMode === 'unified' ? `二合一舞台 · ${dockNavTab}` : 'Dock-to-Sheet 舞台'"
+            :center-text="dockMode === 'unified' ? `二合一悬浮 · ${dockNavTab}` : dockMode === 'unified-flush' ? `二合一贴边 · ${dockNavTab}` : '纯浮动胶囊导航'"
             center-active
             :show-left-toggle="false"
             :right-active="dockDetent !== 'docked'"
@@ -218,14 +282,14 @@ const splitRightW = ref(190)
                 <strong>
                   {{
                     dockNavTab === 'read'
-                      ? '阅读页 · 拖住下方二合一头部上滑 ↑'
+                      ? '阅读页 · 长按滑动底部导航色块试试'
                       : dockNavTab === 'archive'
-                        ? '归档页 · 导航栏切换具备方向过渡动画'
-                        : '关于页 · 进入关于页导航栏依然常驻'
+                        ? '归档页 · 支持悬浮胶囊与贴边直条两种二合一'
+                        : '关于页 · 色块放大可自然溢出边界不被裁切'
                   }}
                 </strong>
                 <p>
-                  停靠态呈居中胶囊并带有圆角呼应，点击底部标签可无缝切换页面并自动收起展开面板。
+                  导航容器严格贴合外框内边距，同时保留色块缩放与越界跟手弹性。
                 </p>
               </div>
             </Transition>
@@ -233,12 +297,13 @@ const splitRightW = ref(190)
             <VlDockSheet
               v-if="dockMode !== 'floating-only'"
               v-model:detent="dockDetent"
-              :nav-items="dockMode === 'unified' ? dockNavItems : undefined"
+              :nav-items="dockNavItems"
               :active-nav="dockNavTab"
+              :floating="dockMode !== 'unified-flush'"
               contained
-              :title="dockMode === 'unified' ? '快捷大纲与设置' : '评论区与扩展抽屉'"
+              title="快捷大纲与设置"
               badge="实时变形"
-              :icon="dockMode === 'unified' ? 'sparkles' : 'comment'"
+              icon="sparkles"
               @update:active-nav="switchDockNav"
               @morph-state="morphTelemetry = $event"
             >
@@ -247,11 +312,10 @@ const splitRightW = ref(190)
               </template>
 
               <div class="dock-sheet-demo-body">
-                <p>现在处于 <strong>{{ dockDetent.toUpperCase() }}</strong> 停靠挡位（当前子页：{{ dockNavTab }}）。</p>
-                <p>独立胶囊导航与二合一吸附胶囊保持完全一致的居中定宽。</p>
-                <div class="comment-stub shape-rect" v-for="i in 6" :key="i">
+                <p>当前形态：<strong>{{ dockMode === 'unified-flush' ? '贴边不悬浮 (FLUSH)' : '居中悬浮 (FLOATING)' }}</strong> · {{ dockDetent.toUpperCase() }}</p>
+                <div class="comment-stub shape-rect" v-for="i in 5" :key="i">
                   <strong>快捷条目标记 #{{ i }}</strong>
-                  <span>二合一结构保证了底层页面导航始终触手可及，不再因进入正文/关于页而丢失导航。</span>
+                  <span>二合一结构保证底层导航始终触手可及。</span>
                 </div>
               </div>
             </VlDockSheet>
@@ -264,6 +328,74 @@ const splitRightW = ref(190)
               variant="capsule"
               @update:model-value="switchDockNav"
             />
+          </div>
+        </div>
+      </VlCard>
+
+      <!-- LAB 3: Standalone Bottom Dock Sheet (CatsOnPlains Floating vs Edge Flush) -->
+      <VlCard title="实验室 3 · 独立底部 Sheet（无底部导航栏 · 悬浮 vs 贴边）" subtitle="对照 CatsOnPlains 同款居中悬浮胶囊 Sheet，并提供零边距直角贴边不悬浮版本" accent-side="left" accent-tone="primary">
+        <div class="lab2-controls">
+          <VlSegmentedControl v-model="soloSheetStyle" :options="soloSheetStyleOpts" size="sm" surface="activity" />
+          <VlSegmentedControl v-model="soloSheetDetent" :options="detentOpts" size="sm" surface="activity" />
+        </div>
+
+        <div class="telemetry-bar shape-rect">
+          <span>样式：<strong>{{ soloSheetStyle === 'floating' ? 'FLOATING' : 'FLUSH' }}</strong></span>
+          <span>高度：<strong>{{ soloTelemetry.height }}px</strong></span>
+          <span>边距：<strong>{{ soloTelemetry.inset }}px</strong></span>
+          <span>圆角：<strong>{{ soloTelemetry.radius }}px</strong></span>
+        </div>
+
+        <div class="phone-stage shape-rect" style="margin-top: 10px">
+          <VlTitleBar
+            mode="mobile"
+            :center-text="soloSheetStyle === 'floating' ? 'CatsOnPlains 悬浮停靠 Sheet' : '贴边不悬浮 Bottom Sheet'"
+            center-active
+            :show-left-toggle="false"
+            :right-active="soloSheetDetent !== 'docked'"
+            @toggle-right="soloSheetDetent = soloSheetDetent === 'docked' ? 'half' : 'docked'"
+          />
+
+          <div class="phone-canvas" style="flex: 1; position: relative">
+            <div class="gesture-banner shape-rect">
+              <strong>{{ soloSheetStyle === 'floating' ? '悬浮态（CatsOnPlains 同款）' : '贴边不悬浮态（Edge Flush）' }}</strong>
+              <p>
+                {{
+                  soloSheetStyle === 'floating'
+                    ? '未绑定底部导航栏，仅在底部居中药丸停靠；向上拖拽手柄可展开为全宽阅读评论区面板。'
+                    : '紧贴屏幕左右及底部边缘，遵循三大几何法则采用 0px 纯直角架构与 2px 顶部强调条，展开零横向边距跳变。'
+                }}
+              </p>
+            </div>
+            <p class="sample-p">
+              独立底部 Sheet 层级默认高于带底部导航栏的 Dock Sheet，同时独立弹窗式 <code>VlSheet</code> 始终处于最上层。
+            </p>
+
+            <VlDockSheet
+              v-model:detent="soloSheetDetent"
+              :floating="soloSheetStyle === 'floating'"
+              contained
+              title="评论区"
+              badge="预留"
+              icon="comment"
+              @morph-state="soloTelemetry = $event"
+            >
+              <template #dock-right>
+                <VlBadge tone="primary" size="xs">42%</VlBadge>
+              </template>
+
+              <div class="dock-sheet-demo-body">
+                <VlEmptyState
+                  compact
+                  title="评论区与扩展内容"
+                  description="拉住底部停靠栏把手向上展开即可变为全宽面板；支持悬浮药丸与零间隙贴边两种底座几何。"
+                />
+                <div class="comment-stub shape-rect" v-for="i in 4" :key="i">
+                  <strong>读者段评示例 #{{ i }}</strong>
+                  <span>无底部导航栏的纯净扩展抽屉，适合阅读器评论区或播放器面板。</span>
+                </div>
+              </div>
+            </VlDockSheet>
           </div>
         </div>
       </VlCard>
@@ -412,6 +544,31 @@ const splitRightW = ref(190)
   font-weight: 800;
   color: var(--text-primary);
   padding: 6px 8px 10px 8px;
+}
+
+.right-drawer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.right-kv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background-color: var(--bg-elevated);
+  border-left: 3px solid var(--accent-secondary);
+  font-size: var(--ui-font-xs);
+  color: var(--text-secondary);
+}
+
+.right-kv code,
+.right-kv strong {
+  font-family: var(--font-mono);
+  color: var(--accent-secondary-text);
+  font-weight: 700;
 }
 
 .phone-canvas {

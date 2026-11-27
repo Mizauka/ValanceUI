@@ -5,6 +5,7 @@ import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
 
 let sheetInstanceSeq = 0
+const isClient = typeof window !== 'undefined'
 
 const props = withDefaults(
   defineProps<{
@@ -648,6 +649,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <Teleport to="body" :disabled="contained || !isClient">
   <!-- ==================== NATIVE 120Hz SCROLL-SNAP + TIMELINE SHEET (TOUCH) ==================== -->
   <template v-if="isNativeTouchScroll">
     <div
@@ -828,6 +830,7 @@ onBeforeUnmount(() => {
       </section>
     </Transition>
   </template>
+  </Teleport>
 </template>
 
 <style>
@@ -866,11 +869,12 @@ onBeforeUnmount(() => {
 .vl-sheet-native-root {
   position: fixed;
   inset: 0;
-  z-index: 65;
+  z-index: 240;
 }
 
 .vl-sheet-native-root.contained {
   position: absolute;
+  z-index: 65;
 }
 
 .vl-sheet-driver {
@@ -901,12 +905,13 @@ onBeforeUnmount(() => {
 .vl-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 235;
   background-color: rgba(24, 21, 18, 0.36);
 }
 
 .vl-sheet-backdrop.contained {
   position: absolute;
+  z-index: 60;
 }
 
 .vl-sheet-backdrop.native-scroll {
@@ -1026,7 +1031,7 @@ onBeforeUnmount(() => {
 
 .vl-sheet {
   position: fixed;
-  z-index: 65;
+  z-index: 240;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-base);
@@ -1059,6 +1064,7 @@ onBeforeUnmount(() => {
 
 .vl-sheet.contained {
   position: absolute;
+  z-index: 65;
 }
 
 .vl-sheet.place-bottom {

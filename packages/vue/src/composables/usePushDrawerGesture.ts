@@ -1,12 +1,17 @@
-import { ref, watch, onBeforeUnmount, type Ref } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, type Ref } from 'vue'
 
 export interface PushDrawerGestureOptions {
   isOpen: Ref<boolean>
   setOpen: (open: boolean) => void
   drawerWidth: Ref<number>
+  hasLeft?: Ref<boolean>
+  isRightOpen?: Ref<boolean>
+  setRightOpen?: (open: boolean) => void
+  rightDrawerWidth?: Ref<number>
+  hasRight?: Ref<boolean>
   enabled?: Ref<boolean>
   ignoreSelector?: string
-  /** Left-edge activation zone in px when drawer is closed (default 32px to avoid fighting in-page widgets) */
+  /** Edge activation zone in px when closed (default unrestricted swipe anywhere) */
   edgeZone?: number
   openVelocity?: number
   snapThreshold?: number
@@ -35,8 +40,14 @@ export function easeNonlinear(t: number): number {
 }
 
 export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
+  const hasLeft = computed(() => options.hasLeft?.value ?? true)
+  const hasRight = computed(() => options.hasRight?.value ?? false)
+
+  const initialSigned =
+    hasRight.value && options.isRightOpen?.value ? -1 : hasLeft.value && options.isOpen.value ? 1 : 0
   const isDragging = ref(false)
-  const progress = ref(options.isOpen.value ? 1 : 0)
+  const progress = ref(Math.max(0, initialSigned))
+  const rightProgress = ref(Math.max(0, -initialSigned))
   const velocity = ref(0)
 
   const openVelocity = options.openVelocity ?? 0.32
@@ -45,25 +56,40 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
 
   let gestureActive = false
   let gestureLocked: 'none' | 'horizontal' | 'vertical' = 'none'
+  let gestureActiveSide: 'left' | 'right' | null = null
   let gestureStartX = 0
   let gestureStartY = 0
-  let gestureStartProgress = 0
+  let gestureStartSigned = 0
   let gestureLastX = 0
   let gestureLastTime = 0
   let gestureVelocityX = 0
   let suppressNextClick = false
   let suppressClickTimer: number | null = null
 
+  function setSigned(val: number): void {
+    const min = hasRight.value ? -1 : 0
+    const max = hasLeft.value ? 1 : 0
+    const clamped = Math.max(min, Math.min(max, val))
+    progress.value = Math.max(0, clamped)
+    rightProgress.value = Math.max(0, -clamped)
+  }
+
   // Native 120Hz CSS transition handles open/close settle (zero rAF JS tween loop!)
   function settleTo(target: number): void {
-    progress.value = target
+    setSigned(target)
   }
 
   watch(
-    () => options.isOpen.value,
-    (open) => {
+    [() => options.isOpen.value, () => options.isRightOpen?.value ?? false, hasLeft, hasRight],
+    ([leftOpen, rightOpen, leftEnabled, rightEnabled]) => {
       if (isDragging.value) return
-      settleTo(open ? 1 : 0)
+      if (rightEnabled && rightOpen) {
+        setSigned(-1)
+      } else if (leftEnabled && leftOpen) {
+        setSigned(1)
+      } else {
+        setSigned(0)
+      }
     },
   )
 
@@ -76,6 +102,7 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
   function cleanupGesture(): void {
     gestureActive = false
     gestureLocked = 'none'
+    gestureActiveSide = null
     if (typeof window === 'undefined') return
     window.removeEventListener('pointermove', onPointerMove)
     window.removeEventListener('pointerup', onPointerUp)
@@ -113,11 +140,14 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
       return
     }
 
-    // When drawer is closed:
+    const anyOpen =
+      (hasLeft.value && options.isOpen.value) || (hasRight.value && Boolean(options.isRightOpen?.value))
+
+    // When both drawers are closed:
     // 1) Never fight focusable/interactive controls or horizontally scrollable containers.
-    // 2) On desktop mouse, never hijack native left-to-right text selection on selectable elements
+    // 2) On desktop mouse, never hijack native horizontal text selection on selectable elements
     //    (touch devices handle text selection via OS long-press so touch swipe stays free).
-    if (!options.isOpen.value) {
+    if (!anyOpen) {
       if (target?.closest(FOCUSABLE_OR_INTERACTIVE_SELECTOR)) return
       if (hasHorizontalScrollableAncestor(target, host)) return
       if (e.pointerType === 'mouse' && target && !target.closest('[data-drawer-drag-zone]')) {
@@ -125,20 +155,25 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
         if (userSelect !== 'none') return
       }
       if (typeof options.edgeZone === 'number' && options.edgeZone > 0) {
-        const hostLeft = host?.getBoundingClientRect().left ?? 0
-        if (e.clientX - hostLeft > options.edgeZone) return
+        const rect = host?.getBoundingClientRect()
+        const hostLeft = rect?.left ?? 0
+        const hostRight = rect?.right ?? window.innerWidth
+        const inLeftZone = hasLeft.value && e.clientX - hostLeft <= options.edgeZone
+        const inRightZone = hasRight.value && hostRight - e.clientX <= options.edgeZone
+        if (!inLeftZone && !inRightZone) return
       }
     }
 
     gestureActive = true
     gestureLocked = 'none'
+    gestureActiveSide = null
     gestureStartX = e.clientX
     gestureStartY = e.clientY
     gestureLastX = e.clientX
     gestureLastTime = performance.now()
     gestureVelocityX = 0
     velocity.value = 0
-    gestureStartProgress = progress.value
+    gestureStartSigned = rightProgress.value > 0 ? -rightProgress.value : progress.value
 
     window.addEventListener('pointermove', onPointerMove, { passive: false })
     window.addEventListener('pointerup', onPointerUp)
@@ -153,10 +188,18 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
     if (gestureLocked === 'none') {
       if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return
       if (Math.abs(dx) > Math.abs(dy) * 1.35) {
-        const canSlide = (!options.isOpen.value && dx > 0) || (options.isOpen.value && dx < 0)
-        if (canSlide) {
+        const curSigned = rightProgress.value > 0 ? -rightProgress.value : progress.value
+        let nextSide: 'left' | 'right' | null = null
+        if (curSigned > 0.01 && dx < 0) nextSide = 'left'
+        else if (curSigned < -0.01 && dx > 0) nextSide = 'right'
+        else if (Math.abs(curSigned) <= 0.01) {
+          if (hasLeft.value && dx > 0) nextSide = 'left'
+          else if (hasRight.value && dx < 0) nextSide = 'right'
+        }
+        if (nextSide) {
+          gestureActiveSide = nextSide
           gestureLocked = 'horizontal'
-          gestureStartProgress = progress.value
+          gestureStartSigned = curSigned
           isDragging.value = true
           if (typeof window !== 'undefined') {
             window.addEventListener('touchmove', blockHorizontalTouchScroll, { passive: false })
@@ -182,22 +225,30 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
       gestureLastX = e.clientX
       gestureLastTime = now
 
-      const width = Math.max(1, options.drawerWidth.value)
-      const rawProgress = gestureStartProgress + dx / width
-      progress.value = Math.max(0, Math.min(1, rawProgress))
+      if (gestureActiveSide === 'right') {
+        const width = Math.max(1, options.rightDrawerWidth?.value || options.drawerWidth.value)
+        const rawSigned = gestureStartSigned + dx / width
+        setSigned(Math.max(-1, Math.min(0, rawSigned)))
+      } else {
+        const width = Math.max(1, options.drawerWidth.value)
+        const rawSigned = gestureStartSigned + dx / width
+        setSigned(Math.max(0, Math.min(1, rawSigned)))
+      }
     }
   }
 
   function onPointerUp(): void {
     if (!gestureActive) return
     const wasHorizontal = gestureLocked === 'horizontal'
-    const currentProgress = progress.value
+    const activeSide = gestureActiveSide
+    const currentLeft = progress.value
+    const currentRight = rightProgress.value
     const vx = gestureVelocityX
 
     cleanupGesture()
     isDragging.value = false
 
-    if (!wasHorizontal) return
+    if (!wasHorizontal || !activeSide) return
 
     suppressNextClick = true
     if (typeof window !== 'undefined') {
@@ -208,13 +259,23 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
       }, 240)
     }
 
-    const shouldOpen =
-      vx > openVelocity ? true : vx < -openVelocity ? false : currentProgress >= snapThreshold
-    const target = shouldOpen ? 1 : 0
-    if (options.isOpen.value !== shouldOpen) {
-      options.setOpen(shouldOpen)
+    if (activeSide === 'right') {
+      const shouldOpen =
+        vx < -openVelocity ? true : vx > openVelocity ? false : currentRight >= snapThreshold
+      const wasOpen = Boolean(options.isRightOpen?.value)
+      if (wasOpen !== shouldOpen) {
+        options.setRightOpen?.(shouldOpen)
+      } else {
+        settleTo(shouldOpen ? -1 : 0)
+      }
     } else {
-      settleTo(target)
+      const shouldOpen =
+        vx > openVelocity ? true : vx < -openVelocity ? false : currentLeft >= snapThreshold
+      if (options.isOpen.value !== shouldOpen) {
+        options.setOpen(shouldOpen)
+      } else {
+        settleTo(shouldOpen ? 1 : 0)
+      }
     }
   }
 
@@ -239,6 +300,7 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
 
   return {
     progress,
+    rightProgress,
     isDragging,
     velocity,
     animateTo: settleTo,

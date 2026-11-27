@@ -30,6 +30,7 @@ const props = withDefaults(
     dockMargin?: number
     halfRatio?: number
     fullRatio?: number
+    floating?: boolean
     contained?: boolean
     title?: string
     badge?: string
@@ -45,6 +46,7 @@ const props = withDefaults(
     dockMargin: 12,
     halfRatio: 0.58,
     fullRatio: 0.88,
+    floating: true,
     contained: false,
     title: '面板',
     icon: 'comment',
@@ -84,18 +86,23 @@ const hasNav = computed(() => Boolean(props.navItems && props.navItems.length > 
 
 const effectiveNavHeight = computed(() => {
   if (typeof props.navHeight === 'number' && props.navHeight > 0) return props.navHeight
+  if (!props.floating) return 58
   return Math.round(Math.min(66, Math.max(58, hostWidth.value * 0.152)))
 })
 
-// Include +2px for VlDockSheet's 1px top & bottom border so inner padding is identically NAV_FRAME_PAD on left, right, and bottom
-const effectiveDockedHeight = computed(() =>
-  hasNav.value ? props.peekHeight + effectiveNavHeight.value + NAV_FRAME_PAD + 2 : props.dockHeight,
-)
+// Include outer border pixels so inner padding stays strictly uniform and nav never overflows
+const effectiveDockedHeight = computed(() => {
+  if (!hasNav.value) return props.dockHeight
+  return props.floating
+    ? props.peekHeight + effectiveNavHeight.value + NAV_FRAME_PAD + 2
+    : props.peekHeight + effectiveNavHeight.value + 1
+})
 
-// Mathematically exact concentric outer corner: inner capsule outer radius + uniform gap + 1px outer border
-const dockRadius = computed(() =>
-  hasNav.value ? Math.round(effectiveNavHeight.value / 2 + NAV_FRAME_PAD + 1) : props.dockHeight / 2,
-)
+// Mathematically exact concentric outer corner in floating mode; 0px flush rectangle when !floating
+const dockRadius = computed(() => {
+  if (!props.floating) return 0
+  return hasNav.value ? Math.round(effectiveNavHeight.value / 2 + NAV_FRAME_PAD + 1) : props.dockHeight / 2
+})
 
 function measureHost() {
   const parent = sheetRef.value?.parentElement
@@ -139,32 +146,35 @@ const morphFactor = computed(() => {
 
 const isExpanded = computed(() => props.detent !== 'docked')
 
-// Unified floating width matches standalone VlBottomDock (min(360px, hostWidth - 24px))
+// Unified floating width matches standalone VlBottomDock (min(360px, hostWidth - 24px)); 0 inset when flush (!floating)
 const dockedTargetWidth = computed(() =>
-  Math.min(380, Math.max(220, hostWidth.value - props.dockMargin * 2)),
+  props.floating ? Math.min(380, Math.max(220, hostWidth.value - props.dockMargin * 2)) : hostWidth.value,
 )
 const dockedInsetX = computed(() =>
-  Math.max(props.dockMargin, (hostWidth.value - dockedTargetWidth.value) / 2),
+  props.floating ? Math.max(props.dockMargin, (hostWidth.value - dockedTargetWidth.value) / 2) : 0,
 )
 
 const computedInset = computed(
-  () => Math.round((1 - morphFactor.value) * dockedInsetX.value * 10) / 10,
+  () => (props.floating ? Math.round((1 - morphFactor.value) * dockedInsetX.value * 10) / 10 : 0),
 )
 const computedBottom = computed(
-  () => Math.round((1 - morphFactor.value) * props.dockMargin * 10) / 10,
+  () => (props.floating ? Math.round((1 - morphFactor.value) * props.dockMargin * 10) / 10 : 0),
 )
 const computedRadius = computed(
-  () => Math.round((1 - morphFactor.value) * dockRadius.value * 10) / 10,
+  () => (props.floating ? Math.round((1 - morphFactor.value) * dockRadius.value * 10) / 10 : 0),
 )
 
 const sheetStyle = computed(() => {
   const mf = morphFactor.value
+  const safeFactor = props.floating ? mf : 1
+  const bottomSafeFactor = props.floating ? 1 - mf : 0
   const heightPx = Math.round(currentHeight.value)
   const insetPx = computedInset.value
   const bottomPx = computedBottom.value
   const radiusPx = computedRadius.value
   const applyFollow =
     hasNav.value &&
+    props.floating &&
     !isExpanded.value &&
     !isDragging.value &&
     (navPressed.value || navFollow.value.dragging || navFollow.value.x !== 0 || navFollow.value.y !== 0)
@@ -186,18 +196,18 @@ const sheetStyle = computed(() => {
   }
 
   return {
-    height: `calc(${heightPx}px + ${mf.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    height: `calc(${heightPx}px + ${safeFactor.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     left: `${insetPx}px`,
     right: `${insetPx}px`,
-    bottom: `calc(${bottomPx}px + ${(1 - mf).toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
-    paddingBottom: `calc(${mf.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    bottom: `calc(${bottomPx}px + ${bottomSafeFactor.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    paddingBottom: `calc(${safeFactor.toFixed(3)} * var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     borderRadius: `${radiusPx}px`,
     ...(followTransform ? { transform: followTransform } : {}),
   }
 })
 
 const navSlotStyle = computed(() => {
-  const padX = Math.round((NAV_FRAME_PAD + morphFactor.value * dockedInsetX.value) * 10) / 10
+  const padX = props.floating ? Math.round((NAV_FRAME_PAD + morphFactor.value * dockedInsetX.value) * 10) / 10 : 0
   return {
     '--dock-capsule-height': `${effectiveNavHeight.value}px`,
     paddingLeft: `${padX}px`,
@@ -418,7 +428,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="vl-dock-sheet-scrim"
-    :class="{ active: expandRatio > 0.02, dragging: isDragging }"
+    :class="{ active: expandRatio > 0.02, dragging: isDragging, standalone: !hasNav }"
     :style="{ opacity: expandRatio * 0.36 }"
     @click="setDetent('docked')"
   />
@@ -430,6 +440,8 @@ onBeforeUnmount(() => {
       dragging: isDragging,
       expanded: isExpanded,
       unified: hasNav,
+      standalone: !hasNav,
+      flush: !floating,
       'nav-pressed': navPressed,
       'nav-dragging': navFollow.dragging && !isExpanded,
     }"
@@ -492,17 +504,18 @@ onBeforeUnmount(() => {
       </VlScrollArea>
     </div>
 
-    <!-- Embedded Enlarged Floating Nav Capsule (2-in-1 Mode) -->
+    <!-- Embedded Floating/Flush Nav (2-in-1 Mode) -->
     <div
       v-if="hasNav"
       class="vl-dock-nav-slot"
+      :class="{ flush: !floating }"
       :style="navSlotStyle"
     >
       <VlBottomDock
         embedded
         :model-value="activeNav ?? navItems![0]?.id ?? ''"
         :items="navItems!"
-        variant="capsule"
+        :variant="floating ? 'capsule' : 'bar'"
         aria-label="底部导航"
         @update:model-value="handleNavSelect"
         @press-change="navPressed = $event"
@@ -523,6 +536,10 @@ onBeforeUnmount(() => {
   transition: opacity 0.32s var(--ease-standard);
 }
 
+.vl-dock-sheet-scrim.standalone {
+  z-index: 45;
+}
+
 .vl-dock-sheet-scrim.active {
   pointer-events: auto;
 }
@@ -534,6 +551,7 @@ onBeforeUnmount(() => {
 .vl-dock-sheet {
   position: absolute;
   z-index: 40;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -553,20 +571,33 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
+/* Standalone dock sheet without embedded nav bar always stacks higher than with-nav dock sheets */
+.vl-dock-sheet.standalone {
+  z-index: 50;
+}
+
 .vl-dock-sheet.unified {
   background-color: var(--bg-activity);
   border-color: var(--divider-strong);
-}
-
-/* Allow the enlarged & slightly-overshooting nav indicator to peek past the dock without clipping;
-   inner header & nav-slot backgrounds are transparent when docked so the outer rounded shell stays crisp! */
-.vl-dock-sheet.unified:not(.expanded) {
+  /* Allow the enlarged / overshooting nav indicator color block to peek without clipping in ALL states;
+     scroll content itself is clipped by .vl-dock-body-wrap (overflow: hidden) while nav capsule stays strictly inside! */
   overflow: visible;
 }
 
 .vl-dock-sheet.unified:not(.expanded) .vl-dock-header,
 .vl-dock-sheet.unified:not(.expanded) .vl-dock-nav-slot {
   background-color: transparent;
+}
+
+.vl-dock-sheet.flush {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  background-color: var(--bg-activity);
+}
+
+.vl-dock-sheet.flush:not(.unified) {
+  border-top: 2px solid var(--accent-primary);
 }
 
 .vl-dock-sheet.unified.nav-dragging {
@@ -593,7 +624,9 @@ onBeforeUnmount(() => {
 
 .vl-dock-header {
   position: relative;
+  z-index: 2;
   flex-shrink: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -606,6 +639,10 @@ onBeforeUnmount(() => {
 
 .vl-dock-sheet.unified .vl-dock-header {
   padding: 6px 18px 0 18px;
+}
+
+.vl-dock-sheet.flush .vl-dock-header {
+  padding: 4px var(--pane-pad) 0 var(--pane-pad);
 }
 
 .vl-dock-sheet.expanded .vl-dock-header {
@@ -762,7 +799,9 @@ onBeforeUnmount(() => {
 }
 
 .vl-dock-body-wrap {
-  flex: 1;
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -770,7 +809,7 @@ onBeforeUnmount(() => {
 }
 
 .vl-dock-scroll {
-  flex: 1;
+  flex: 1 1 0px;
   min-height: 0;
   overflow: hidden;
   transition: opacity 0.28s var(--ease-standard);
@@ -785,10 +824,13 @@ onBeforeUnmount(() => {
 }
 
 .vl-dock-nav-slot {
+  position: relative;
+  z-index: 3;
   flex-shrink: 0;
   width: 100%;
   padding-top: 0;
   padding-bottom: 6px;
+  overflow: visible;
   background-color: var(--bg-activity);
   box-sizing: border-box;
   transition:
@@ -798,6 +840,10 @@ onBeforeUnmount(() => {
     background-color 0.24s var(--ease-standard);
 }
 
+.vl-dock-nav-slot.flush {
+  padding-bottom: 0;
+}
+
 .vl-dock-sheet.dragging .vl-dock-nav-slot {
   transition: none;
 }
@@ -805,5 +851,10 @@ onBeforeUnmount(() => {
 .vl-dock-sheet.expanded .vl-dock-nav-slot {
   border-top: 1px solid var(--divider-hairline);
   padding-top: 6px;
+}
+
+.vl-dock-sheet.flush.expanded .vl-dock-nav-slot.flush {
+  border-top: none;
+  padding-top: 0;
 }
 </style>

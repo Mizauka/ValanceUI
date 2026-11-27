@@ -203,19 +203,19 @@ textarea:focus-visible {
   backface-visibility: hidden;
 }
 
-/* Preset 2: Subtle Scale Crossfade */
+/* Preset 2: Subtle Scale Crossfade (staggered out-then-in to prevent text overlap) */
 .vl-fade-enter-active {
   will-change: opacity, transform;
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1) 0.08s,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
 }
 
 .vl-fade-leave-active {
   will-change: opacity, transform;
   transition:
-    opacity 0.2s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.2s cubic-bezier(0.4, 0, 1, 1);
+    opacity 0.13s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.13s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .vl-fade-enter-from {
@@ -225,7 +225,7 @@ textarea:focus-visible {
 
 .vl-fade-leave-to {
   opacity: 0;
-  transform: scale3d(0.99, 0.99, 1);
+  transform: scale3d(0.992, 0.992, 1);
 }
 
 /* Preset 3a: Vertical Slide + Fade (Desktop Workbench Sidebar Views) */

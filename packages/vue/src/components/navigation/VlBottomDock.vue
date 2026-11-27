@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
     v-else
     ref="barRef"
     class="vl-bottom-dock vl-dock-bar shape-rect"
-    :class="{ contained, pressed: scrubPressed, dragging: scrubDragging }"
+    :class="{ contained, embedded, pressed: scrubPressed, dragging: scrubDragging }"
     :style="{ gridTemplateColumns: `repeat(${Math.max(1, items.length)}, 1fr)` }"
     :aria-label="ariaLabel"
   >
@@ -518,7 +518,8 @@ onBeforeUnmount(() => {
   cursor: grabbing;
 }
 
-.vl-dock-bar.contained {
+.vl-dock-bar.contained,
+.vl-dock-bar.embedded {
   padding-bottom: 0;
 }
 

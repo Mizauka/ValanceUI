@@ -136,7 +136,7 @@ describe('@valance-ui/vue core components', () => {
     expect(st.emitted('update:modelValue')?.[0]).toEqual([20])
   })
 
-  it('renders VlPushDrawer and emits open updates from scrim', async () => {
+  it('renders VlPushDrawer and emits open updates from scrim, including bidirectional right-drawer swipe', async () => {
     const wrapper = mount(VlPushDrawer, {
       props: { open: true, contained: true, drawerWidth: 280 },
       slots: {
@@ -147,16 +147,41 @@ describe('@valance-ui/vue core components', () => {
     expect(wrapper.find('.drawer-slot').text()).toBe('Nav')
     await wrapper.find('.vl-drawer-scrim').trigger('click')
     expect(wrapper.emitted('update:open')?.[0]).toEqual([false])
+
+    const dual = mount(VlPushDrawer, {
+      props: { open: false, rightOpen: false, contained: true, drawerWidth: 240 },
+      slots: {
+        drawer: '<div class="left-slot">Left</div>',
+        'right-drawer': '<div class="right-slot">Right</div>',
+        default: '<div class="center-slot">Center</div>',
+      },
+    })
+    expect(dual.find('.left-slot').text()).toBe('Left')
+    expect(dual.find('.right-slot').text()).toBe('Right')
+    // Swipe left opens right drawer
+    await dual.find('.vl-push-shell').trigger('pointerdown', { clientX: 300, clientY: 120, button: 0, pointerType: 'touch' })
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 160, clientY: 120 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 160, clientY: 120 }))
+    expect(dual.emitted('update:rightOpen')?.[0]).toEqual([true])
   })
 
-  it('renders VlDockSheet and cycles detents', async () => {
+  it('renders VlDockSheet in floating and flush modes, with standalone stacking higher than unified', async () => {
     const wrapper = mount(VlDockSheet, {
       props: { detent: 'docked', title: '评论区', badge: '预留' },
       slots: { default: '<div>内容</div>' },
     })
     expect(wrapper.find('.vl-dock-title').text()).toBe('评论区')
+    expect(wrapper.find('.vl-dock-sheet').classes()).toContain('standalone')
     await wrapper.find('.vl-dock-action-pill').trigger('click')
     expect(wrapper.emitted('update:detent')?.[0]).toEqual(['half'])
+
+    const flush = mount(VlDockSheet, {
+      props: { detent: 'docked', floating: false, contained: true, title: '贴边抽屉' },
+      slots: { default: '<div>贴边内容</div>' },
+    })
+    expect(flush.find('.vl-dock-sheet').classes()).toContain('flush')
+    expect(flush.find('.vl-dock-sheet').attributes('style')).toContain('border-radius: 0px')
+    expect(flush.find('.vl-dock-sheet').attributes('style')).toContain('bottom: 0px')
   })
 
   it('renders VlSheet and closes via close button or halfway swipe gesture', async () => {
@@ -176,6 +201,14 @@ describe('@valance-ui/vue core components', () => {
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 260 }))
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 260 }))
     expect(swipeSheet.emitted('update:open')?.[0]).toEqual([false])
+
+    // Standalone VlSheet (!contained) teleports to document.body to stay strictly above docked sheets
+    const portaledSheet = mount(VlSheet, {
+      props: { open: true, title: '顶层独立 Sheet' },
+      slots: { default: '<div>高层级內容</div>' },
+    })
+    expect(document.body.querySelector('.vl-sheet[aria-label="顶层独立 Sheet"]')).not.toBeNull()
+    portaledSheet.unmount()
   })
 
   it('renders VlActivityBar in mobile mode and emits select', async () => {

@@ -279,7 +279,7 @@ watch(
 
       settleTimer = setTimeout(() => {
         finishTransition(token)
-      }, 340)
+      }, 380)
       return
     }
 
@@ -599,7 +599,7 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-fade-in-a;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-snap-page.is-fade-scroll-enter-b {
@@ -607,7 +607,7 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-fade-in-b;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-snap-page.is-fade-scroll-leave-a {
@@ -615,7 +615,7 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-fade-out-a;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-snap-page.is-fade-scroll-leave-b {
@@ -623,27 +623,27 @@ onBeforeUnmount(() => {
   animation-name: vl-pager-fade-out-b;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-snap-page.is-fade-kf-enter-a {
   will-change: opacity, transform;
-  animation: vl-pager-fade-in-a 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: vl-pager-fade-in-a 0.32s linear both;
 }
 
 .vl-snap-page.is-fade-kf-enter-b {
   will-change: opacity, transform;
-  animation: vl-pager-fade-in-b 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: vl-pager-fade-in-b 0.32s linear both;
 }
 
 .vl-snap-page.is-fade-kf-leave-a {
   will-change: opacity, transform;
-  animation: vl-pager-fade-out-a 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: vl-pager-fade-out-a 0.32s linear both;
 }
 
 .vl-snap-page.is-fade-kf-leave-b {
   will-change: opacity, transform;
-  animation: vl-pager-fade-out-b 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: vl-pager-fade-out-b 0.32s linear both;
 }
 
 @keyframes vl-pager-track-a {
@@ -665,46 +665,54 @@ onBeforeUnmount(() => {
 }
 
 @keyframes vl-pager-fade-in-a {
-  from {
+  0%,
+  28% {
     opacity: 0;
     transform: scale3d(0.985, 0.985, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale3d(1, 1, 1);
   }
 }
 
 @keyframes vl-pager-fade-in-b {
-  from {
+  0%,
+  28% {
     opacity: 0;
     transform: scale3d(0.985, 0.985, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale3d(1, 1, 1);
   }
 }
 
 @keyframes vl-pager-fade-out-a {
-  from {
+  0% {
     opacity: 1;
     transform: scale3d(1, 1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  to {
+  40%,
+  100% {
     opacity: 0;
-    transform: scale3d(0.99, 0.99, 1);
+    transform: scale3d(0.992, 0.992, 1);
   }
 }
 
 @keyframes vl-pager-fade-out-b {
-  from {
+  0% {
     opacity: 1;
     transform: scale3d(1, 1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  to {
+  40%,
+  100% {
     opacity: 0;
-    transform: scale3d(0.99, 0.99, 1);
+    transform: scale3d(0.992, 0.992, 1);
   }
 }
 

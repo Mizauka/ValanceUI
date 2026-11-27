@@ -1,41 +1,52 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, useSlots } from 'vue'
 import { usePushDrawerGesture } from '../../composables/usePushDrawerGesture'
 import { useBackHandler } from '../../composables/useBackNavigation'
 
 const props = withDefaults(
   defineProps<{
     open: boolean
+    rightOpen?: boolean
     drawerWidth?: number
+    rightDrawerWidth?: number
     contained?: boolean
     disabled?: boolean
     ignoreSelector?: string
     scrimOpacity?: number
     ariaLabel?: string
+    rightAriaLabel?: string
   }>(),
   {
+    rightOpen: false,
     contained: false,
     disabled: false,
     scrimOpacity: 0.28,
     ariaLabel: '左侧推挤抽屉',
+    rightAriaLabel: '右侧推挤抽屉',
   },
 )
 
 const emit = defineEmits<{
   (e: 'update:open', open: boolean): void
-  (e: 'drag-state', state: { progress: number; isDragging: boolean; velocity: number }): void
+  (e: 'update:rightOpen', open: boolean): void
+  (e: 'drag-state', state: { progress: number; rightProgress: number; isDragging: boolean; velocity: number }): void
 }>()
+
+const slots = useSlots()
+const hasRight = computed(() => Boolean(slots['right-drawer']))
+const hasLeft = computed(() => Boolean(slots.drawer) || !hasRight.value)
 
 const shellRef = ref<HTMLElement | null>(null)
 const scrollerRef = ref<HTMLElement | null>(null)
 const measuredHostWidth = ref(390)
 const isNativeTouchScroll = ref(false)
 const nativeProgress = ref(props.open ? 1 : 0)
+const nativeRightProgress = ref(props.rightOpen ? 1 : 0)
 const nativeScrolling = ref(false)
 
 let resizeObserver: ResizeObserver | null = null
 let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null
-let programmaticScrollTarget: boolean | null = null
+let programmaticScrollTarget: 'left' | 'right' | 'closed' | null = null
 let coarseMql: MediaQueryList | null = null
 let boundaryTouchStartX = 0
 let boundaryTouchStartY = 0
@@ -98,13 +109,26 @@ const resolvedDrawerWidth = computed(() => {
   return Math.min(400, Math.max(276, Math.round(measuredHostWidth.value * 0.86)))
 })
 
+const resolvedRightWidth = computed(() => {
+  if (typeof props.rightDrawerWidth === 'number' && props.rightDrawerWidth > 0) {
+    return props.rightDrawerWidth
+  }
+  return resolvedDrawerWidth.value
+})
+
 const isOpenRef = computed(() => props.open)
+const isRightOpenRef = computed(() => props.rightOpen)
 const enabledRef = computed(() => !props.disabled && !isNativeTouchScroll.value)
 
+function closeDrawers() {
+  if (props.open) emit('update:open', false)
+  if (props.rightOpen) emit('update:rightOpen', false)
+}
+
 useBackHandler(
-  computed(() => props.open && !props.contained && !props.disabled),
+  computed(() => (props.open || props.rightOpen) && !props.contained && !props.disabled),
   () => {
-    emit('update:open', false)
+    closeDrawers()
     return true
   },
   150,
@@ -112,25 +136,40 @@ useBackHandler(
 
 const {
   progress: gestureProgress,
+  rightProgress: gestureRightProgress,
   isDragging: gestureDragging,
   velocity,
   onPointerDown,
   onClickCapture,
 } = usePushDrawerGesture({
   isOpen: isOpenRef,
-  setOpen: (val) => emit('update:open', val),
+  setOpen: (val) => {
+    if (val && props.rightOpen) emit('update:rightOpen', false)
+    emit('update:open', val)
+  },
   drawerWidth: resolvedDrawerWidth,
+  hasLeft,
+  isRightOpen: isRightOpenRef,
+  setRightOpen: (val) => {
+    if (val && props.open) emit('update:open', false)
+    emit('update:rightOpen', val)
+  },
+  rightDrawerWidth: resolvedRightWidth,
+  hasRight,
   enabled: enabledRef,
   ignoreSelector: props.ignoreSelector,
 })
 
 const progress = computed(() => (isNativeTouchScroll.value ? nativeProgress.value : gestureProgress.value))
+const rightProgress = computed(() =>
+  isNativeTouchScroll.value ? nativeRightProgress.value : gestureRightProgress.value,
+)
 const isDragging = computed(() => (isNativeTouchScroll.value ? nativeScrolling.value : gestureDragging.value))
 
 watch(
-  [progress, isDragging, velocity],
-  ([p, d, v]) => {
-    emit('drag-state', { progress: p, isDragging: d, velocity: v })
+  [progress, rightProgress, isDragging, velocity],
+  ([p, rp, d, v]) => {
+    emit('drag-state', { progress: p, rightProgress: rp, isDragging: d, velocity: v })
   },
   { immediate: true },
 )
@@ -138,15 +177,33 @@ watch(
 function syncNativeScrollPosition(instant: boolean) {
   const scroller = scrollerRef.value
   if (!scroller || !isNativeTouchScroll.value) return
-  const targetLeft = props.open ? 0 : resolvedDrawerWidth.value
-  nativeProgress.value = props.open ? 1 : 0
+  const leftW = hasLeft.value ? resolvedDrawerWidth.value : 0
+  const rightW = hasRight.value ? resolvedRightWidth.value : 0
+  let targetLeft = leftW
+  let nextState: 'left' | 'right' | 'closed' = 'closed'
+
+  if (hasRight.value && props.rightOpen) {
+    targetLeft = leftW + rightW
+    nextState = 'right'
+    nativeProgress.value = 0
+    nativeRightProgress.value = 1
+  } else if (hasLeft.value && props.open) {
+    targetLeft = 0
+    nextState = 'left'
+    nativeProgress.value = 1
+    nativeRightProgress.value = 0
+  } else {
+    nativeProgress.value = 0
+    nativeRightProgress.value = 0
+  }
+
   if (instant) {
     programmaticScrollTarget = null
     scroller.scrollLeft = targetLeft
     return
   }
   if (Math.abs(scroller.scrollLeft - targetLeft) < 1) return
-  programmaticScrollTarget = props.open
+  programmaticScrollTarget = nextState
   if (typeof scroller.scrollTo === 'function') {
     scroller.scrollTo({ left: targetLeft, behavior: 'smooth' })
   } else {
@@ -162,31 +219,45 @@ function finalizeNativeScroll() {
   nativeScrolling.value = false
   const scroller = scrollerRef.value
   if (!scroller || !isNativeTouchScroll.value) return
-  const w = Math.max(1, resolvedDrawerWidth.value)
-  const p = Math.max(0, Math.min(1, 1 - scroller.scrollLeft / w))
-  nativeProgress.value = p
-  const settledOpen = p >= 0.5
+  const leftW = hasLeft.value ? Math.max(1, resolvedDrawerWidth.value) : 0
+  const rightW = hasRight.value ? Math.max(1, resolvedRightWidth.value) : 0
+  const sl = scroller.scrollLeft
+
+  const leftP = hasLeft.value && sl < leftW ? Math.max(0, Math.min(1, (leftW - sl) / leftW)) : 0
+  const rightP = hasRight.value && sl > leftW ? Math.max(0, Math.min(1, (sl - leftW) / rightW)) : 0
+  nativeProgress.value = leftP
+  nativeRightProgress.value = rightP
+
+  const settledLeft = leftP >= 0.5
+  const settledRight = rightP >= 0.5
   if (programmaticScrollTarget !== null) {
     programmaticScrollTarget = null
     return
   }
-  if (settledOpen !== props.open) {
-    emit('update:open', settledOpen)
+  if (settledLeft !== props.open) {
+    emit('update:open', settledLeft)
+  }
+  if (settledRight !== props.rightOpen) {
+    emit('update:rightOpen', settledRight)
   }
 }
 
 function onNativeScroll() {
   const scroller = scrollerRef.value
   if (!scroller || !isNativeTouchScroll.value) return
-  const w = Math.max(1, resolvedDrawerWidth.value)
-  nativeProgress.value = Math.max(0, Math.min(1, 1 - scroller.scrollLeft / w))
+  const leftW = hasLeft.value ? Math.max(1, resolvedDrawerWidth.value) : 0
+  const rightW = hasRight.value ? Math.max(1, resolvedRightWidth.value) : 0
+  const sl = scroller.scrollLeft
+  nativeProgress.value = hasLeft.value && sl < leftW ? Math.max(0, Math.min(1, (leftW - sl) / leftW)) : 0
+  nativeRightProgress.value =
+    hasRight.value && sl > leftW ? Math.max(0, Math.min(1, (sl - leftW) / rightW)) : 0
   nativeScrolling.value = true
   if (scrollSettleTimer !== null) clearTimeout(scrollSettleTimer)
   scrollSettleTimer = setTimeout(finalizeNativeScroll, 140)
 }
 
 watch(
-  () => props.open,
+  [() => props.open, () => props.rightOpen],
   () => {
     if (isNativeTouchScroll.value) {
       syncNativeScrollPosition(false)
@@ -194,7 +265,7 @@ watch(
   },
 )
 
-watch([resolvedDrawerWidth, isNativeTouchScroll], () => {
+watch([resolvedDrawerWidth, resolvedRightWidth, hasLeft, hasRight, isNativeTouchScroll], () => {
   if (isNativeTouchScroll.value) {
     syncNativeScrollPosition(true)
   }
@@ -213,19 +284,35 @@ const drawerTransformStyle = computed(() => {
   }
 })
 
+const rightDrawerTransformStyle = computed(() => {
+  if (isNativeTouchScroll.value) {
+    return {
+      width: `${resolvedRightWidth.value}px`,
+    }
+  }
+  const offset = ((1 - rightProgress.value) * resolvedRightWidth.value).toFixed(2)
+  return {
+    width: `${resolvedRightWidth.value}px`,
+    transform: `translate3d(${offset}px, 0, 0)`,
+  }
+})
+
 const pushedMainTransformStyle = computed(() => {
   if (isNativeTouchScroll.value) {
     return undefined
   }
-  const offset = (progress.value * resolvedDrawerWidth.value).toFixed(2)
+  const offset = (
+    progress.value * resolvedDrawerWidth.value -
+    rightProgress.value * resolvedRightWidth.value
+  ).toFixed(2)
   return {
     transform: `translate3d(${offset}px, 0, 0)`,
   }
 })
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.open && !props.disabled) {
-    emit('update:open', false)
+  if (e.key === 'Escape' && (props.open || props.rightOpen) && !props.disabled) {
+    closeDrawers()
   }
 }
 
@@ -264,8 +351,10 @@ onBeforeUnmount(() => {
 
 defineExpose({
   progress,
+  rightProgress,
   isDragging,
   drawerWidth: resolvedDrawerWidth,
+  rightDrawerWidth: resolvedRightWidth,
 })
 </script>
 
@@ -287,7 +376,8 @@ defineExpose({
       @scrollend="finalizeNativeScroll"
     >
       <aside
-        class="vl-push-drawer shape-rect"
+        v-if="hasLeft"
+        class="vl-push-drawer side-left shape-rect"
         :class="{ dragging: isDragging, contained, 'native-scroll': isNativeTouchScroll }"
         :style="drawerTransformStyle"
         :aria-hidden="!open && !isDragging"
@@ -305,11 +395,22 @@ defineExpose({
 
         <div
           class="vl-drawer-scrim"
-          :class="{ active: progress > 0.02, dragging: isDragging }"
-          :style="{ opacity: progress * scrimOpacity }"
-          @click="emit('update:open', false)"
+          :class="{ active: Math.max(progress, rightProgress) > 0.02, dragging: isDragging }"
+          :style="{ opacity: Math.max(progress, rightProgress) * scrimOpacity }"
+          @click="closeDrawers"
         />
       </div>
+
+      <aside
+        v-if="hasRight"
+        class="vl-push-drawer side-right shape-rect"
+        :class="{ dragging: isDragging, contained, 'native-scroll': isNativeTouchScroll }"
+        :style="rightDrawerTransformStyle"
+        :aria-hidden="!rightOpen && !isDragging"
+        :aria-label="rightAriaLabel"
+      >
+        <slot name="right-drawer" />
+      </aside>
     </div>
 
     <slot name="overlay" />
@@ -379,10 +480,18 @@ defineExpose({
   transition: transform 0.36s var(--ease-standard);
 }
 
+.vl-push-drawer.side-right {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--divider-hairline);
+}
+
 .vl-push-drawer.native-scroll {
   position: relative;
   top: auto;
   left: auto;
+  right: auto;
   bottom: auto;
   height: 100%;
   flex: 0 0 auto;
@@ -390,6 +499,10 @@ defineExpose({
   scroll-snap-stop: always;
   will-change: auto;
   transition: none;
+}
+
+.vl-push-drawer.native-scroll.side-right {
+  scroll-snap-align: end;
 }
 
 .vl-push-drawer.dragging {

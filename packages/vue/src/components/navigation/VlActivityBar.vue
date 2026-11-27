@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface ActivityBarItem {
   id: string
@@ -43,7 +46,6 @@ const props = withDefaults(
     activeVisible: true,
     mobile: false,
     expanded: false,
-    ariaLabel: '工作台活动栏',
   },
 )
 
@@ -101,7 +103,7 @@ function groupStyle(group: ActivityBarGroup): Record<string, string> | undefined
   <nav
     class="vl-activity-bar shape-rect"
     :class="{ mobile, expanded, 'has-center': hasCenterGroup }"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.nav.activityBarAria"
   >
     <div
       v-for="(group, gIdx) in normalizedGroups"

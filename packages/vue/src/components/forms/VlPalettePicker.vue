@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useThemeMode } from '../../composables/useThemeMode'
+import { useLocale } from '../../composables/useLocale'
 import {
   MONET_HARMONY_OPTIONS,
   PRIDE_PALETTES,
@@ -32,6 +33,23 @@ const {
   setMonetSeed,
   setMonetHarmony,
 } = useThemeMode()
+const { messages } = useLocale()
+
+function palName(id: string, fallback: string) {
+  return messages.value.palettePicker.palettes[id]?.name ?? fallback
+}
+
+function palSubtitle(id: string, fallback: string) {
+  return messages.value.palettePicker.palettes[id]?.subtitle ?? fallback
+}
+
+function harmonyLabel(id: MonetHarmonyMode, fallback: string) {
+  return messages.value.palettePicker.harmonies[id]?.label ?? fallback
+}
+
+function harmonyHint(id: MonetHarmonyMode, fallback: string) {
+  return messages.value.palettePicker.harmonies[id]?.hint ?? fallback
+}
 
 const hexDraft = ref(monetSeed.value)
 watch(monetSeed, (v) => {
@@ -70,8 +88,8 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
     <!-- Standard Editorial Palettes -->
     <section class="vl-pp-sec">
       <div class="vl-pp-head">
-        <span class="vl-pp-title">高级协调配色预设</span>
-        <span class="vl-pp-meta">高明度微暖白底 + 矿物冷暖主辅</span>
+        <span class="vl-pp-title">{{ messages.palettePicker.standardTitle }}</span>
+        <span class="vl-pp-meta">{{ messages.palettePicker.standardMeta }}</span>
       </div>
       <div class="vl-pp-grid" :class="{ 'cols-2': compact, 'cols-3': !compact }">
         <button
@@ -93,12 +111,12 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
                 backgroundColor: pal.light.surfaces.base,
                 border: '1px solid var(--divider-strong)',
               }"
-              title="浅色微暖纸白背景"
+              :title="messages.palettePicker.lightPaperBgTitle"
             />
           </span>
           <span class="vl-pal-info">
-            <strong class="vl-pal-name">{{ pal.name }}</strong>
-            <small v-if="!compact" class="vl-pal-sub">{{ pal.subtitle }}</small>
+            <strong class="vl-pal-name">{{ palName(pal.id, pal.name) }}</strong>
+            <small v-if="!compact" class="vl-pal-sub">{{ palSubtitle(pal.id, pal.subtitle) }}</small>
           </span>
           <VlIcon v-if="paletteId === pal.id" name="check" :size="12" class="vl-pal-check" />
         </button>
@@ -108,29 +126,29 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
     <!-- Monet Dynamic Extraction -->
     <section v-if="showMonet" class="vl-pp-sec">
       <div class="vl-pp-head">
-        <span class="vl-pp-title">莫奈智能取色（双色和谐对位）</span>
+        <span class="vl-pp-title">{{ messages.palettePicker.monetTitle }}</span>
         <button
           type="button"
           class="vl-pp-chip shape-pill"
           :class="{ active: paletteId === 'monet' }"
           @click="setPalette('monet', $event)"
         >
-          {{ paletteId === 'monet' ? '当前已启用' : '启用莫奈色' }}
+          {{ paletteId === 'monet' ? messages.palettePicker.monetActive : messages.palettePicker.enableMonet }}
         </button>
       </div>
 
       <div class="vl-monet-box shape-rect" :class="{ active: paletteId === 'monet' }">
         <div class="vl-monet-row">
-          <label class="vl-seed-picker shape-rect" title="选择种子颜色">
+          <label class="vl-seed-picker shape-rect" :title="messages.palettePicker.pickSeedTitle">
             <input
               type="color"
               class="vl-color-native"
               :value="monetSeed"
-              aria-label="选择莫奈取色种子颜色"
+              :aria-label="messages.palettePicker.pickSeedAria"
               @input="onNativeColorInput"
             />
             <span class="vl-seed-swatch shape-circle" :style="{ backgroundColor: monetSeed }" />
-            <span class="vl-seed-label">种子</span>
+            <span class="vl-seed-label">{{ messages.palettePicker.seedLabel }}</span>
           </label>
 
           <div class="flat-input-box" style="flex: 1; min-width: 0">
@@ -138,7 +156,7 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
               v-model="hexDraft"
               type="text"
               class="flat-input"
-              aria-label="种子色十六进制值"
+              :aria-label="messages.palettePicker.seedHexAria"
               placeholder="#FA871E"
               @change="applyHexDraft"
               @keydown.enter.prevent="applyHexDraft"
@@ -153,14 +171,14 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
               class="vl-mini-swatch shape-circle"
               :class="{ active: monetSeed === sw && paletteId === 'monet' }"
               :style="{ backgroundColor: sw }"
-              :title="`使用种子 ${sw}`"
+              :title="messages.palettePicker.useSeedTitle(sw)"
               @click="setMonetSeed(sw, monetHarmony, $event)"
             />
           </div>
         </div>
 
         <div class="vl-harmony-row">
-          <span class="vl-harmony-label">副色策略</span>
+          <span class="vl-harmony-label">{{ messages.palettePicker.harmonyLabel }}</span>
           <div class="vl-harmony-tabs">
             <button
               v-for="opt in MONET_HARMONY_OPTIONS"
@@ -168,10 +186,10 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
               type="button"
               class="vl-harmony-btn shape-rect"
               :class="{ active: monetHarmony === opt.id }"
-              :title="opt.hint"
+              :title="harmonyHint(opt.id, opt.hint)"
               @click="selectHarmony(opt.id, $event)"
             >
-              {{ opt.label }}
+              {{ harmonyLabel(opt.id, opt.label) }}
             </button>
           </div>
         </div>
@@ -179,11 +197,11 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
         <div class="vl-monet-preview">
           <span class="vl-pv-chip shape-pill">
             <span class="vl-pv-dot shape-circle" :style="{ backgroundColor: monetPreview.light.primary.base }" />
-            <span>主色 {{ monetPreview.light.primary.base }}</span>
+            <span>{{ messages.palettePicker.primaryChip(monetPreview.light.primary.base) }}</span>
           </span>
           <span class="vl-pv-chip shape-pill">
             <span class="vl-pv-dot shape-circle" :style="{ backgroundColor: monetPreview.light.secondary.base }" />
-            <span>和谐副色 {{ monetPreview.light.secondary.base }}</span>
+            <span>{{ messages.palettePicker.secondaryChip(monetPreview.light.secondary.base) }}</span>
           </span>
           <span class="vl-pv-chip shape-pill">
             <span
@@ -193,7 +211,7 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
                 border: '1px solid var(--divider-strong)',
               }"
             />
-            <span>高明度底 {{ monetPreview.light.surfaces.base }}</span>
+            <span>{{ messages.palettePicker.surfaceChip(monetPreview.light.surfaces.base) }}</span>
           </span>
         </div>
       </div>
@@ -202,8 +220,8 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
     <!-- Pride Special Palettes -->
     <section v-if="showPride" class="vl-pp-sec">
       <div class="vl-pp-head">
-        <span class="vl-pp-title">Pride 特殊配色</span>
-        <span class="vl-pp-meta">{{ PRIDE_PALETTES.length }} 套明亮骄傲旗灵感</span>
+        <span class="vl-pp-title">{{ messages.palettePicker.prideTitle }}</span>
+        <span class="vl-pp-meta">{{ messages.palettePicker.prideMeta(PRIDE_PALETTES.length) }}</span>
       </div>
       <div class="vl-pp-grid" :class="{ 'cols-2': compact, 'cols-3': !compact }">
         <button
@@ -224,8 +242,8 @@ function selectHarmony(mode: MonetHarmonyMode, event: MouseEvent) {
             />
           </span>
           <span class="vl-pal-info">
-            <strong class="vl-pal-name">{{ pal.name }}</strong>
-            <small v-if="!compact" class="vl-pal-sub">{{ pal.subtitle }}</small>
+            <strong class="vl-pal-name">{{ palName(pal.id, pal.name) }}</strong>
+            <small v-if="!compact" class="vl-pal-sub">{{ palSubtitle(pal.id, pal.subtitle) }}</small>
           </span>
           <VlIcon v-if="paletteId === pal.id" name="check" :size="12" class="vl-pal-check" />
         </button>

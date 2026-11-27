@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useThemeMode } from '../../composables/useThemeMode'
 import { useToast } from '../../composables/useToast'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   name: string
@@ -11,6 +12,7 @@ const props = defineProps<{
 
 const { resolvedTheme, accentScheme } = useThemeMode()
 const toast = useToast()
+const { messages } = useLocale()
 
 const swatchRef = ref<HTMLElement | null>(null)
 const computedHex = ref('')
@@ -33,7 +35,7 @@ async function copyToken() {
   const val = `var(${props.token})`
   try {
     await navigator.clipboard?.writeText(val)
-    toast.success(`已复制 ${val} (${computedHex.value})`)
+    toast.success(messages.value.colorSwatch.copied(val, computedHex.value))
   } catch {
     toast.info(`${val} · ${computedHex.value}`)
   }

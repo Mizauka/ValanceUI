@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useSplitResize } from '../../composables/useSplitResize'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -46,8 +49,6 @@ const props = withDefaults(
     defaultDualSideRatio: 0.4,
     hasLeft: true,
     hasRight: true,
-    leftSashTitle: '拖动调整左侧面板宽度 · 双击重置',
-    rightSashTitle: '拖动调整右侧面板宽度 · 双击重置',
   },
 )
 
@@ -225,8 +226,8 @@ defineExpose({
         data-no-drawer-gesture
         role="separator"
         aria-orientation="vertical"
-        :aria-label="leftSashTitle"
-        :title="leftSashTitle"
+        :aria-label="leftSashTitle ?? messages.splitPane.leftSashTitle"
+        :title="leftSashTitle ?? messages.splitPane.leftSashTitle"
         @pointerdown.stop="leftSash.startDrag"
         @dblclick="resetLeft"
       >
@@ -252,8 +253,8 @@ defineExpose({
         data-no-drawer-gesture
         role="separator"
         aria-orientation="vertical"
-        :aria-label="rightSashTitle"
-        :title="rightSashTitle"
+        :aria-label="rightSashTitle ?? messages.splitPane.rightSashTitle"
+        :title="rightSashTitle ?? messages.splitPane.rightSashTitle"
         @pointerdown.stop="rightSash.startDrag"
         @dblclick="resetRight"
       >

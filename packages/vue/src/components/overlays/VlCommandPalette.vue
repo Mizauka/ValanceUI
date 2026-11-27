@@ -4,6 +4,9 @@ import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface CommandPaletteItem {
   id: string
@@ -28,7 +31,6 @@ const props = withDefaults(
     contained?: boolean
   }>(),
   {
-    placeholder: '搜索页面、组件、章节或正则模式…',
     allowRegex: true,
     enableHotkey: false,
     teleport: true,
@@ -86,7 +88,7 @@ const regexCompile = computed<{ regex: RegExp | null; error: string | null }>(()
   try {
     return { regex: new RegExp(q, 'i'), error: null }
   } catch (err) {
-    return { regex: null, error: err instanceof Error ? err.message : '正则语法错误' }
+    return { regex: null, error: err instanceof Error ? err.message : messages.value.commandPalette.regexSyntaxError }
   }
 })
 
@@ -187,7 +189,7 @@ onBeforeUnmount(() => {
         role="presentation"
         @mousedown.self="close"
       >
-        <div class="vl-cmd-box shape-rect" role="dialog" aria-label="快捷命令搜索面板">
+        <div class="vl-cmd-box shape-rect" role="dialog" :aria-label="messages.commandPalette.ariaLabel">
           <div class="vl-cmd-search-bar">
             <VlIcon name="search" :size="15" class="vl-cmd-lead" />
             <input
@@ -195,7 +197,7 @@ onBeforeUnmount(() => {
               v-model="query"
               type="text"
               class="vl-cmd-input"
-              :placeholder="placeholder"
+              :placeholder="placeholder ?? messages.commandPalette.placeholder"
               @keydown="onInputKeydown"
             />
             <button
@@ -203,7 +205,7 @@ onBeforeUnmount(() => {
               type="button"
               class="vl-cmd-mode shape-pill"
               :class="{ active: useRegex }"
-              title="切换正则匹配"
+              :title="messages.commandPalette.toggleRegexTitle"
               @click="useRegex = !useRegex"
             >
               .*
@@ -212,7 +214,7 @@ onBeforeUnmount(() => {
               v-if="query"
               type="button"
               class="vl-cmd-clear shape-circle"
-              aria-label="清空"
+              :aria-label="messages.common.clear"
               @click="query = ''"
             >
               <VlIcon name="close" :size="10" />
@@ -220,12 +222,12 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="regexCompile.error" class="vl-cmd-error">
-            正则语法错误：{{ regexCompile.error }}
+            {{ messages.commandPalette.regexErrorPrefix }}{{ regexCompile.error }}
           </div>
 
           <VlScrollArea max-height="340px" class="vl-cmd-results">
             <div v-if="filteredItems.length === 0" class="vl-cmd-empty">
-              未找到匹配的命令或页面结果
+              {{ messages.commandPalette.emptyText }}
             </div>
 
             <button
@@ -265,9 +267,9 @@ onBeforeUnmount(() => {
           </VlScrollArea>
 
           <div class="vl-cmd-foot">
-            <span>↑↓ 选择</span>
-            <span>Enter 跳转</span>
-            <span>Esc 关闭</span>
+            <span>{{ messages.commandPalette.navHint }}</span>
+            <span>{{ messages.commandPalette.selectHint }}</span>
+            <span>{{ messages.commandPalette.closeHint }}</span>
           </div>
         </div>
       </div>

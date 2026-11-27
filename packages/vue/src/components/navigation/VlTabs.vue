@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import { useNavScrubGesture } from '../../composables/useNavScrubGesture'
+import { useLocale } from '../../composables/useLocale'
 
 export interface TabOption<V extends string = string> {
   value: V
@@ -10,6 +11,8 @@ export interface TabOption<V extends string = string> {
   icon?: IconName
   badge?: string | number
 }
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -20,7 +23,6 @@ const props = withDefaults(
   }>(),
   {
     tone: 'secondary',
-    ariaLabel: '选项卡',
   },
 )
 
@@ -153,7 +155,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="vl-tabs-bar shape-rect" role="tablist" :aria-label="ariaLabel">
+  <div class="vl-tabs-bar shape-rect" role="tablist" :aria-label="ariaLabel ?? messages.nav.tabsAria">
     <div ref="trackRef" class="vl-tabs-items" :class="{ pressed: scrubPressed, dragging: scrubDragging }">
       <span
         v-show="ready && barW > 0"

@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface TimelineItem {
   id: string | number
@@ -36,7 +39,6 @@ const props = withDefaults(
     activeId: null,
     clickable: true,
     tone: 'primary',
-    emptyText: '暂无时间线记录',
   },
 )
 
@@ -50,7 +52,7 @@ const resolvedGroups = computed<TimelineGroup[]>(() => {
 
   const map = new Map<string, TimelineItem[]>()
   for (const item of props.items) {
-    const key = item.group || '全部记录'
+    const key = item.group || messages.value.timeline.allGroup
     const list = map.get(key) ?? []
     list.push(item)
     map.set(key, list)
@@ -67,7 +69,7 @@ const resolvedGroups = computed<TimelineGroup[]>(() => {
 <template>
   <div class="vl-timeline" :class="`t-${tone}`">
     <div v-if="resolvedGroups.length === 0" class="vl-tl-empty">
-      {{ emptyText }}
+      {{ emptyText ?? messages.timeline.emptyText }}
     </div>
 
     <section v-for="grp in resolvedGroups" :key="grp.key" class="vl-tl-group">

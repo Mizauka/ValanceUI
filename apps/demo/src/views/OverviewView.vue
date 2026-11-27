@@ -8,12 +8,13 @@ import {
   useThemeMode,
   getAllIconNames,
 } from '@valance-ui/vue'
-import { DEMO_SECTIONS } from '../demoCatalog'
+import { useDemoI18n } from '../i18n'
 
 const emit = defineEmits<{
   (e: 'navigate', id: string): void
 }>()
 
+const { t, localizedSections } = useDemoI18n()
 const { resolvedTheme, accentScheme, toggleTheme, toggleAccent } = useThemeMode()
 const iconCount = getAllIconNames().length
 </script>
@@ -30,75 +31,73 @@ const iconCount = getAllIconNames().length
         </div>
 
         <h1 class="hero-title">Valance Flat Geometric Design System</h1>
-        <p class="hero-desc">
-          提炼并统一自 <strong>CatsOnPlains 阅读工作台</strong> 与 <strong>The Valence Project</strong> 的高表现力扁平几何 Vue 3 组件库与 VitePress 主题系统。坚持严格的三大几何法则、零投影色调层级与非线性物理手势交互。
-        </p>
+        <p class="hero-desc">{{ t.overview.heroDesc }}</p>
 
         <div class="hero-actions">
           <VlButton variant="primary" icon-right="arrow-right" @click="emit('navigate', 'gestures')">
-            体验手势抽屉与 Dock-to-Sheet
+            {{ t.overview.heroButtons.gestures }}
           </VlButton>
           <VlButton variant="secondary" icon="palette" @click="toggleAccent($event)">
-            对调主题色 ({{ accentScheme === 'default' ? '主橘 / 辅青' : '主青 / 辅橘' }})
+            {{ t.overview.heroButtons.swapAccent(accentScheme) }}
           </VlButton>
           <VlButton
             variant="outline"
             :icon="resolvedTheme === 'dark' ? 'sun' : 'moon'"
             @click="toggleTheme($event)"
           >
-            切换{{ resolvedTheme === 'dark' ? '亮色暖纸' : '暗色炭岩' }}
+            {{ t.overview.heroButtons.toggleTheme(resolvedTheme) }}
           </VlButton>
         </div>
       </div>
     </section>
 
     <section class="stats-grid">
-      <VlStatTile title="核心组件数量" value="60+" subtitle="含图表、时间线、命令面板、自绘表盘/日历/选择框" badge="VUE 3" tone="primary" />
-      <VlStatTile title="内置几何图标" :value="iconCount" subtitle="16×16 统一视框 · 真镂空路径" badge="SVG" tone="secondary" />
-      <VlStatTile title="几何轮廓体系" value="3 + 35" subtitle="0px · 50% · 9999px + M3E 35 图形（禁用中圆角）" badge="STRICT" tone="primary" />
-      <VlStatTile title="阴影与模糊" value="0 px" subtitle="禁用一切 box-shadow / drop-shadow" badge="FLAT" tone="secondary" />
+      <VlStatTile :title="t.overview.stats.componentsTitle" value="60+" :subtitle="t.overview.stats.componentsSubtitle" badge="VUE 3" tone="primary" />
+      <VlStatTile :title="t.overview.stats.iconsTitle" :value="iconCount" :subtitle="t.overview.stats.iconsSubtitle" badge="SVG" tone="secondary" />
+      <VlStatTile :title="t.overview.stats.shapesTitle" value="3 + 35" :subtitle="t.overview.stats.shapesSubtitle" badge="STRICT" tone="primary" />
+      <VlStatTile :title="t.overview.stats.shadowTitle" value="0 px" :subtitle="t.overview.stats.shadowSubtitle" badge="FLAT" tone="secondary" />
     </section>
 
     <!-- Strict 3-Geometry Rule Visual Proof -->
-    <VlCard title="三大严格几何法则（Three-Geometry Law）" subtitle="任何元素仅允许在这三种几何形态之间存在或进行非线性形变过渡" accent-side="top" accent-tone="primary">
+    <VlCard :title="t.overview.rules.cardTitle" :subtitle="t.overview.rules.cardSubtitle" accent-side="top" accent-tone="primary">
       <div class="geo-grid">
         <div class="geo-card shape-rect">
           <div class="geo-preview">
             <div class="geo-rect shape-rect" />
           </div>
-          <strong>1. 纯直角矩形 · Pure Rect</strong>
+          <strong>{{ t.overview.rules.rectTitle }}</strong>
           <code>border-radius: 0</code>
-          <span>用于页面画布、分割面板、卡片容器、工具栏、表格及按钮静态。</span>
+          <span>{{ t.overview.rules.rectDesc }}</span>
         </div>
 
         <div class="geo-card shape-rect">
           <div class="geo-preview">
             <div class="geo-circle shape-circle" />
           </div>
-          <strong>2. 纯正圆 · Pure Circle</strong>
+          <strong>{{ t.overview.rules.circleTitle }}</strong>
           <code>border-radius: 50% (W === H)</code>
-          <span>用于活动栏激活态、图标按钮、关闭按钮、状态点、头像与空状态核心。</span>
+          <span>{{ t.overview.rules.circleDesc }}</span>
         </div>
 
         <div class="geo-card shape-rect">
           <div class="geo-preview">
             <div class="geo-pill shape-pill" />
           </div>
-          <strong>3. 纯胶囊 · Pure Pill</strong>
+          <strong>{{ t.overview.rules.pillTitle }}</strong>
           <code>border-radius: 9999px / calc(H / 2)</code>
-          <span>用于悬浮 Dock、分段滑动指示器、药丸徽章、搜索框及按钮悬停形变终态。</span>
+          <span>{{ t.overview.rules.pillDesc }}</span>
         </div>
       </div>
     </VlCard>
 
-    <VlAlert tone="warning" title="设计禁令：零中等圆角 · 零阴影">
-      严禁使用 <code>border-radius: 4px / 8px / 12px</code> 等中间圆角，严禁使用任何 <code>box-shadow</code>、<code>drop-shadow</code> 或 <code>text-shadow</code>。层级感完全通过 <strong>5 阶表面色阶梯 + 1px 结构细线 + 3~4px 强调条</strong> 建立。
+    <VlAlert tone="warning" :title="t.overview.banAlert.title">
+      {{ t.overview.banAlert.body }}
     </VlAlert>
 
     <!-- Quick Module Directory -->
     <section class="module-grid">
       <VlCard
-        v-for="sec in DEMO_SECTIONS.slice(1)"
+        v-for="sec in localizedSections.slice(1)"
         :key="sec.id"
         :title="sec.title"
         accent-side="left"

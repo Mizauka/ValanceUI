@@ -7,6 +7,9 @@ import {
   watch,
   type CSSProperties,
 } from 'vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 type SlideDirection = 'next' | 'prev'
 type AnimParity = 'a' | 'b'
@@ -37,7 +40,6 @@ const props = withDefaults(
     pages: () => [],
     transition: 'slide',
     preload: true,
-    ariaLabel: '分页视图',
   },
 )
 
@@ -299,7 +301,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="vl-snap-pager" role="region" :aria-label="ariaLabel">
+  <div class="vl-snap-pager" role="region" :aria-label="ariaLabel ?? messages.snapPager.ariaLabel">
     <div
       ref="trackRef"
       class="vl-pager-track"

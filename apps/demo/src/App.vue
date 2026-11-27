@@ -22,19 +22,21 @@ import {
   VlTitleBar,
   VlToast,
   VlCommandPalette,
+  getLocalizedPaletteName,
   useThemeMode,
   useViewportTier,
   type ActivityBarItem,
   type BottomDockItem,
   type CommandPaletteItem,
   type DockSheetDetent,
+  type LocalePreference,
   type SegmentOption,
   type SideNavItem,
   type TabBarItem,
   type ThemePreference,
   type AccentScheme,
 } from '@valance-ui/vue'
-import { DEMO_SECTIONS, buildDemoNavGroups } from './demoCatalog'
+import { useDemoI18n } from './i18n'
 import OverviewView from './views/OverviewView.vue'
 import ColorsView from './views/ColorsView.vue'
 import ShapesView from './views/ShapesView.vue'
@@ -46,6 +48,25 @@ import NavigationView from './views/NavigationView.vue'
 import LayoutGesturesView from './views/LayoutGesturesView.vue'
 import OverlaysFeedbackView from './views/OverlaysFeedbackView.vue'
 import DataDisplayView from './views/DataDisplayView.vue'
+
+const {
+  t,
+  locale,
+  localePreference,
+  localeOptions,
+  setLocale,
+  cycleLocale,
+  localizedSections,
+  getLocalizedNavGroups,
+} = useDemoI18n()
+
+const localeSegOpts = computed<SegmentOption<LocalePreference>[]>(() =>
+  localeOptions.value.map((opt) => ({ value: opt.value, label: opt.label })),
+)
+
+const activeLocaleDisplayLabel = computed(
+  () => localeOptions.value.find((opt) => opt.value === localePreference.value)?.label ?? locale.value,
+)
 
 const {
   themePreference,
@@ -90,7 +111,7 @@ const desktopViewTransition = computed(() =>
   desktopViewDir.value === 'next' ? 'vl-slide-fade-v-next' : 'vl-slide-fade-v-prev',
 )
 const activeMobileDockId = computed(() =>
-  mobileDockItems.some((item) => item.id === activeSectionId.value) ? activeSectionId.value : 'overview',
+  mobileDockItems.value.some((item) => item.id === activeSectionId.value) ? activeSectionId.value : 'overview',
 )
 
 const leftShown = computed(() => (isDual.value ? dualSide.value === 'left' : leftVisible.value))
@@ -101,7 +122,7 @@ const activeSectionId = ref('overview')
 const searchQuery = ref('')
 const cmdPaletteOpen = ref(false)
 const commandItems = computed<CommandPaletteItem[]>(() =>
-  DEMO_SECTIONS.map((s) => ({
+  localizedSections.value.map((s) => ({
     id: s.id,
     label: s.title,
     subtitle: s.subtitle,
@@ -113,12 +134,12 @@ const commandItems = computed<CommandPaletteItem[]>(() =>
 )
 
 const activeSection = computed(
-  () => DEMO_SECTIONS.find((s) => s.id === activeSectionId.value) ?? DEMO_SECTIONS[0]!,
+  () => localizedSections.value.find((s) => s.id === activeSectionId.value) ?? localizedSections.value[0]!,
 )
 
 const openTabs = computed<TabBarItem[]>(() =>
   openIds.value
-    .map((id) => DEMO_SECTIONS.find((s) => s.id === id))
+    .map((id) => localizedSections.value.find((s) => s.id === id))
     .filter((s): s is NonNullable<typeof s> => Boolean(s))
     .map((s) => ({
       id: s.id,
@@ -130,12 +151,12 @@ const openTabs = computed<TabBarItem[]>(() =>
     })),
 )
 
-const navGroups = computed(() => buildDemoNavGroups(new Set(openIds.value)))
+const navGroups = computed(() => getLocalizedNavGroups(new Set(openIds.value)))
 
 const filteredSearch = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return DEMO_SECTIONS
-  return DEMO_SECTIONS.filter(
+  if (!q) return localizedSections.value
+  return localizedSections.value.filter(
     (s) =>
       s.title.toLowerCase().includes(q) ||
       s.summary.toLowerCase().includes(q) ||
@@ -143,43 +164,43 @@ const filteredSearch = computed(() => {
   )
 })
 
-const topActivityItems: ActivityBarItem[] = [
-  { id: 'catalog', icon: 'files', label: '组件目录' },
-  { id: 'search', icon: 'search', label: '搜索模块' },
-]
+const topActivityItems = computed<ActivityBarItem[]>(() => [
+  { id: 'catalog', icon: 'files', label: t.value.app.activity.catalog },
+  { id: 'search', icon: 'search', label: t.value.app.activity.search },
+])
 
 const bottomActivityItems = computed<ActivityBarItem[]>(() => [
   ...(!isPhone.value
-    ? [{ id: 'inspector', icon: 'sliders' as const, label: '规范检查器', tone: 'secondary' as const, active: rightShown.value }]
+    ? [{ id: 'inspector', icon: 'sliders' as const, label: t.value.app.activity.inspector, tone: 'secondary' as const, active: rightShown.value }]
     : []),
-  { id: 'settings', icon: 'settings', label: '外观设置' },
+  { id: 'settings', icon: 'settings', label: t.value.app.activity.settings },
 ])
 
-const mobileDockItems: BottomDockItem[] = [
-  { id: 'overview', label: '总览', icon: 'compass' },
-  { id: 'gestures', label: '手势', icon: 'gesture' },
-  { id: 'buttons', label: '控件', icon: 'plus' },
-]
+const mobileDockItems = computed<BottomDockItem[]>(() => [
+  { id: 'overview', label: t.value.app.mobileDock.overview, icon: 'compass' },
+  { id: 'gestures', label: t.value.app.mobileDock.gestures, icon: 'gesture' },
+  { id: 'buttons', label: t.value.app.mobileDock.buttons, icon: 'plus' },
+])
 
-const themeOpts: SegmentOption<ThemePreference>[] = [
-  { value: 'system', label: '系统' },
-  { value: 'light', label: '亮色' },
-  { value: 'dark', label: '暗色' },
-]
+const themeOpts = computed<SegmentOption<ThemePreference>[]>(() => [
+  { value: 'system', label: t.value.app.themeOptions.system },
+  { value: 'light', label: t.value.app.themeOptions.light },
+  { value: 'dark', label: t.value.app.themeOptions.dark },
+])
 
-const accentOpts: SegmentOption<AccentScheme>[] = [
-  { value: 'default', label: '默认（橘 / 青）' },
-  { value: 'swapped', label: '对调（青 / 橘）' },
-]
+const accentOpts = computed<SegmentOption<AccentScheme>[]>(() => [
+  { value: 'default', label: t.value.app.accentOptions.default },
+  { value: 'swapped', label: t.value.app.accentOptions.swapped },
+])
 
 function openSection(id: string) {
-  const fromSecIdx = DEMO_SECTIONS.findIndex((s) => s.id === activeSectionId.value)
-  const toSecIdx = DEMO_SECTIONS.findIndex((s) => s.id === id)
+  const fromSecIdx = localizedSections.value.findIndex((s) => s.id === activeSectionId.value)
+  const toSecIdx = localizedSections.value.findIndex((s) => s.id === id)
   if (fromSecIdx !== -1 && toSecIdx !== -1 && fromSecIdx !== toSecIdx) {
     desktopViewDir.value = toSecIdx > fromSecIdx ? 'next' : 'prev'
   }
-  const fromDockIdx = mobileDockItems.findIndex((d) => d.id === activeSectionId.value)
-  const toDockIdx = mobileDockItems.findIndex((d) => d.id === id)
+  const fromDockIdx = mobileDockItems.value.findIndex((d) => d.id === activeSectionId.value)
+  const toDockIdx = mobileDockItems.value.findIndex((d) => d.id === id)
   if (fromDockIdx !== -1 && toDockIdx !== -1 && fromDockIdx !== toDockIdx) {
     mobileDockDir.value = toDockIdx > fromDockIdx ? 'left' : 'right'
   } else if (fromSecIdx !== -1 && toSecIdx !== -1 && fromSecIdx !== toSecIdx) {
@@ -294,11 +315,11 @@ onBeforeUnmount(() => {
       />
       <div class="drawer-body">
         <Transition :name="sidebarTransition" mode="out-in">
-          <VlPanel v-if="activitySection === 'catalog'" key="mobile-catalog" title="组件与规范目录" badge="DEMO" padded>
+          <VlPanel v-if="activitySection === 'catalog'" key="mobile-catalog" :title="t.app.panels.mobileCatalogTitle" badge="DEMO" padded>
             <VlSideNav :groups="navGroups" :active-id="activeSectionId" @select="onSelectNav" />
           </VlPanel>
-          <VlPanel v-else-if="activitySection === 'search'" key="mobile-search" title="搜索演示模块" badge="SEARCH" padded>
-            <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable placeholder="搜索模块…" />
+          <VlPanel v-else-if="activitySection === 'search'" key="mobile-search" :title="t.app.panels.mobileSearchTitle" badge="SEARCH" padded>
+            <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable :placeholder="t.app.panels.mobileSearchPlaceholder" />
             <div class="search-list">
               <button
                 v-for="item in filteredSearch"
@@ -313,8 +334,18 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </VlPanel>
-          <VlPanel v-else key="mobile-settings" title="外观设置" badge="THEME" padded>
+          <VlPanel v-else key="mobile-settings" :title="t.app.panels.mobileSettingsTitle" badge="THEME" padded>
             <div class="setting-stack">
+              <div class="set-lbl">{{ t.app.panels.languageSectionTitle }}</div>
+              <VlSegmentedControl
+                :model-value="localePreference"
+                :options="localeSegOpts"
+                variant="morph-grid"
+                :columns="2"
+                @update:model-value="setLocale($event)"
+              />
+
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.appearanceModeTitle }}</div>
               <VlSegmentedControl
                 :model-value="themePreference"
                 :options="themeOpts"
@@ -322,6 +353,7 @@ onBeforeUnmount(() => {
                 :columns="3"
                 @select="(v, e) => setThemePreference(v, e)"
               />
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.accentSwapTitle }}</div>
               <VlSegmentedControl
                 :model-value="accentScheme"
                 :options="accentOpts"
@@ -330,7 +362,7 @@ onBeforeUnmount(() => {
                 @select="(v, e) => setAccentScheme(v, e)"
               />
 
-              <div class="set-lbl" style="margin-top: 8px">配色方案与莫奈 / Pride</div>
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.paletteSectionTitle }}</div>
               <VlPalettePicker compact />
             </div>
           </VlPanel>
@@ -345,15 +377,21 @@ onBeforeUnmount(() => {
       center-active
       :left-active="mobileDrawerOpen"
       :right-active="mobileDockDetent !== 'docked'"
-      right-title="展开快捷设置面板"
+      :right-title="t.app.actions.expandQuickSettings"
       @toggle-left="toggleLeftPanel"
       @toggle-right="mobileDockDetent = mobileDockDetent === 'docked' ? 'half' : 'docked'"
     >
       <template #right>
         <VlIconButton
+          icon="globe"
+          morph-on-hover
+          :title="`${t.app.actions.cycleLocale} (${locale})`"
+          @click="cycleLocale(false)"
+        />
+        <VlIconButton
           :icon="resolvedTheme === 'dark' ? 'sun' : 'moon'"
           morph-on-hover
-          title="切换明暗模式"
+          :title="t.app.actions.toggleTheme"
           @click="toggleTheme($event)"
         />
       </template>
@@ -366,7 +404,7 @@ onBeforeUnmount(() => {
         :pages="['overview', 'gestures', 'buttons']"
         :direction="mobileSlideDirection"
         transition="fade"
-        aria-label="移动端演示分页"
+        :aria-label="t.app.panels.mobilePagerAria"
       >
         <template #default="{ pageId }">
           <VlScrollArea class="center-scroll">
@@ -392,11 +430,18 @@ onBeforeUnmount(() => {
         :nav-items="mobileDockItems"
         :active-nav="activeMobileDockId"
         :title="activeSection.title"
-        :badge="activePalette.name"
+        :badge="getLocalizedPaletteName(activePalette.id, activePalette.name)"
         icon="compass"
         @update:active-nav="openSection"
       >
         <div class="setting-stack" style="padding: 12px">
+          <VlSegmentedControl
+            :model-value="localePreference"
+            :options="localeSegOpts"
+            variant="morph-grid"
+            :columns="2"
+            @update:model-value="setLocale($event)"
+          />
           <VlPalettePicker compact />
         </div>
       </VlDockSheet>
@@ -418,10 +463,17 @@ onBeforeUnmount(() => {
     >
       <template #right>
         <VlIconButton
+          icon="globe"
+          size="sm"
+          morph-on-hover
+          :title="`${t.app.actions.cycleLocale} (${locale})`"
+          @click="cycleLocale(false)"
+        />
+        <VlIconButton
           :icon="resolvedTheme === 'dark' ? 'sun' : 'moon'"
           size="sm"
           morph-on-hover
-          title="切换明暗模式"
+          :title="t.app.actions.toggleTheme"
           @click="toggleTheme($event)"
         />
         <VlIconButton
@@ -429,7 +481,7 @@ onBeforeUnmount(() => {
           size="sm"
           :tone="accentScheme === 'swapped' ? 'secondary' : 'primary'"
           :active="accentScheme === 'swapped'"
-          title="对调主辅主题色"
+          :title="t.app.actions.swapAccent"
           @click="toggleAccent($event)"
         />
         <VlIconButton
@@ -437,7 +489,7 @@ onBeforeUnmount(() => {
           size="sm"
           tone="primary"
           :active="leftShown"
-          title="显示/隐藏左侧目录 (Ctrl+B)"
+          :title="t.app.actions.toggleLeftSidebar"
           @click="toggleLeftPanel"
         />
         <VlIconButton
@@ -445,7 +497,7 @@ onBeforeUnmount(() => {
           size="sm"
           tone="secondary"
           :active="rightShown"
-          title="显示/隐藏右侧检查器 (Ctrl+Shift+B)"
+          :title="t.app.actions.toggleRightInspector"
           @click="toggleRightPanel"
         />
       </template>
@@ -471,12 +523,12 @@ onBeforeUnmount(() => {
 
       <template #left>
         <Transition :name="sidebarTransition" mode="out-in">
-          <VlPanel v-if="activitySection === 'catalog'" key="left-catalog" title="组件与规范目录" badge="11 MODULES" padded>
+          <VlPanel v-if="activitySection === 'catalog'" key="left-catalog" :title="t.app.panels.leftCatalogTitle" :badge="t.app.panels.leftCatalogBadge" padded>
             <VlSideNav :groups="navGroups" :active-id="activeSectionId" @select="onSelectNav" />
           </VlPanel>
 
-          <VlPanel v-else-if="activitySection === 'search'" key="left-search" title="搜索模块" badge="SEARCH" padded>
-            <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable placeholder="筛选组件或主题…" />
+          <VlPanel v-else-if="activitySection === 'search'" key="left-search" :title="t.app.panels.leftSearchTitle" badge="SEARCH" padded>
+            <VlInput v-model="searchQuery" shape="pill" prefix-icon="search" clearable :placeholder="t.app.panels.leftSearchPlaceholder" />
             <div class="search-list">
               <button
                 v-for="item in filteredSearch"
@@ -492,9 +544,18 @@ onBeforeUnmount(() => {
             </div>
           </VlPanel>
 
-          <VlPanel v-else key="left-settings" title="外观与主题配置" badge="TOKENS" padded>
+          <VlPanel v-else key="left-settings" :title="t.app.panels.leftSettingsTitle" badge="TOKENS" padded>
             <div class="setting-stack">
-              <div class="set-lbl">外观模式</div>
+              <div class="set-lbl">{{ t.app.panels.languageSectionTitle }}</div>
+              <VlSegmentedControl
+                :model-value="localePreference"
+                :options="localeSegOpts"
+                variant="morph-grid"
+                :columns="2"
+                @update:model-value="setLocale($event)"
+              />
+
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.appearanceModeTitle }}</div>
               <VlSegmentedControl
                 :model-value="themePreference"
                 :options="themeOpts"
@@ -503,7 +564,7 @@ onBeforeUnmount(() => {
                 @select="(v, e) => setThemePreference(v, e)"
               />
 
-              <div class="set-lbl" style="margin-top: 8px">主辅色对调</div>
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.accentSwapTitle }}</div>
               <VlSegmentedControl
                 :model-value="accentScheme"
                 :options="accentOpts"
@@ -512,7 +573,7 @@ onBeforeUnmount(() => {
                 @select="(v, e) => setAccentScheme(v, e)"
               />
 
-              <div class="set-lbl" style="margin-top: 8px">配色方案与莫奈 / Pride</div>
+              <div class="set-lbl" style="margin-top: 8px">{{ t.app.panels.paletteSectionTitle }}</div>
               <VlPalettePicker compact />
             </div>
           </VlPanel>
@@ -527,7 +588,7 @@ onBeforeUnmount(() => {
           @close="closeTab"
         >
           <template v-if="openTabs.length > 1" #actions>
-            <VlButton size="xs" shape="pill" @click="closeOtherTabs">清理标签</VlButton>
+            <VlButton size="xs" shape="pill" @click="closeOtherTabs">{{ t.app.actions.cleanTabs }}</VlButton>
           </template>
         </VlTabBar>
 
@@ -564,41 +625,45 @@ onBeforeUnmount(() => {
       </template>
 
       <template #right>
-        <VlPanel title="实时设计检查器" badge="LIVE SPEC" header-border padded>
+        <VlPanel :title="t.app.inspector.panelTitle" badge="LIVE SPEC" header-border padded>
           <div class="insp-stack">
-            <VlCard title="当前视图模块" accent-side="left" accent-tone="primary" surface="elevated" padding="sm">
+            <VlCard :title="t.app.inspector.currentModuleCard" accent-side="left" accent-tone="primary" surface="elevated" padding="sm">
               <div class="insp-kv">
-                <span>模块 ID</span>
+                <span>{{ t.app.inspector.moduleId }}</span>
                 <code>{{ activeSection.id }}</code>
               </div>
               <div class="insp-kv">
-                <span>所属分组</span>
+                <span>{{ t.app.inspector.moduleGroup }}</span>
                 <strong>{{ activeSection.group }}</strong>
               </div>
               <p class="insp-desc">{{ activeSection.summary }}</p>
             </VlCard>
 
-            <VlCard title="当前主题状态" accent-side="left" accent-tone="secondary" surface="elevated" padding="sm">
+            <VlCard :title="t.app.inspector.themeStateCard" accent-side="left" accent-tone="secondary" surface="elevated" padding="sm">
               <div class="insp-kv">
-                <span>明暗模式</span>
+                <span>{{ t.app.inspector.themeMode }}</span>
                 <code>{{ resolvedTheme }}</code>
               </div>
               <div class="insp-kv">
-                <span>配色方案</span>
-                <code>{{ activePalette.name }}</code>
+                <span>{{ t.app.inspector.palette }}</span>
+                <code>{{ getLocalizedPaletteName(activePalette.id, activePalette.name) }}</code>
               </div>
               <div class="insp-kv">
-                <span>强调方案</span>
+                <span>{{ t.app.inspector.accentScheme }}</span>
                 <code>{{ accentScheme }}</code>
               </div>
               <div class="insp-kv">
-                <span>已打开标签</span>
-                <strong>{{ openTabs.length }} 个</strong>
+                <span>{{ t.app.inspector.language }}</span>
+                <code>{{ activeLocaleDisplayLabel }} ({{ locale }})</code>
+              </div>
+              <div class="insp-kv">
+                <span>{{ t.app.inspector.openTabs }}</span>
+                <strong>{{ t.app.inspector.tabCountUnit(openTabs.length) }}</strong>
               </div>
             </VlCard>
 
             <VlButton variant="primary" icon="gesture" block @click="openSection('gestures')">
-              前往手势 & Dock 实验室
+              {{ t.app.actions.goGesturesLab }}
             </VlButton>
           </div>
         </VlPanel>
@@ -609,11 +674,11 @@ onBeforeUnmount(() => {
       <template #left>
         <VlBadge tone="secondary" size="xs">v1.0.0</VlBadge>
         <span>@valance-ui/vue</span>
-        <span class="st-muted">{{ openTabs.length }} 个标签页</span>
+        <span class="st-muted">{{ t.app.statusBar.tabsCount(openTabs.length) }}</span>
       </template>
       <template #right>
         <VlBadge tone="primary" size="xs">{{ activeSection.subtitle }}</VlBadge>
-        <span>{{ resolvedTheme === 'light' ? `亮色 ${activeLightBgHex}` : `暗色 ${activeDarkBgHex}` }}</span>
+        <span>{{ t.app.statusBar.themeLabel(resolvedTheme, resolvedTheme === 'light' ? activeLightBgHex : activeDarkBgHex) }}</span>
       </template>
     </VlStatusBar>
   </div>

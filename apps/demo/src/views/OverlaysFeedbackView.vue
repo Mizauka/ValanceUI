@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   VlAlert,
   VlButton,
@@ -21,7 +21,9 @@ import {
   type CommandPaletteItem,
   type DropdownItem,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
 
+const { t } = useDemoI18n()
 const toast = useToast()
 
 const bottomSheetOpen = ref(false)
@@ -29,26 +31,26 @@ const sideSheetOpen = ref(false)
 const dialogOpen = ref(false)
 const dangerDialogOpen = ref(false)
 const paletteOpen = ref(false)
-const paletteItems: CommandPaletteItem[] = [
-  { id: 'overview', label: '设计规范总览', excerpt: '三大基础几何形态 + M3E 35 轮廓', group: 'Foundation', badge: 'SPEC' },
-  { id: 'shapes', label: 'M3E 35 种几何图形', excerpt: 'Material 3 Expressive SVG 矢量系统', group: 'Foundation', badge: '35' },
-  { id: 'forms', label: '自绘 Select / 日历 / 表盘时钟', excerpt: '100% 非原生自绘高定控件', group: 'Forms', shortcut: 'G F' },
-  { id: 'data', label: '交互 SVG 图谱与时间线', excerpt: '支持 CI 置信带与缩放拖拽', group: 'Data', badge: 'CHART' },
-]
+const paletteItems = computed<CommandPaletteItem[]>(() => [
+  { id: 'overview', label: t.value.overlays.paletteItems.overview.label, excerpt: t.value.overlays.paletteItems.overview.excerpt, group: t.value.overlays.paletteItems.overview.group, badge: 'SPEC' },
+  { id: 'shapes', label: t.value.overlays.paletteItems.shapes.label, excerpt: t.value.overlays.paletteItems.shapes.excerpt, group: t.value.overlays.paletteItems.shapes.group, badge: '35' },
+  { id: 'forms', label: t.value.overlays.paletteItems.forms.label, excerpt: t.value.overlays.paletteItems.forms.excerpt, group: t.value.overlays.paletteItems.forms.group, shortcut: 'G F' },
+  { id: 'data', label: t.value.overlays.paletteItems.data.label, excerpt: t.value.overlays.paletteItems.data.excerpt, group: t.value.overlays.paletteItems.data.group, badge: 'CHART' },
+])
 const progressVal = ref(68)
 const noteInput = ref('')
 
-const menuItems: DropdownItem[] = [
-  { id: 'edit', label: '编辑条目', icon: 'edit', shortcut: 'E' },
-  { id: 'copy', label: '复制链接', icon: 'copy', shortcut: '⌘C' },
-  { id: 'share', label: '分享配置', icon: 'share' },
+const menuItems = computed<DropdownItem[]>(() => [
+  { id: 'edit', label: t.value.overlays.menuItems.edit, icon: 'edit', shortcut: 'E' },
+  { id: 'copy', label: t.value.overlays.menuItems.copy, icon: 'copy', shortcut: '⌘C' },
+  { id: 'share', label: t.value.overlays.menuItems.share, icon: 'share' },
   { id: 'div', label: '', divider: true },
-  { id: 'delete', label: '删除项目', icon: 'trash', danger: true },
-]
+  { id: 'delete', label: t.value.overlays.menuItems.delete, icon: 'trash', danger: true },
+])
 
 function onDropdownSelect(item: DropdownItem) {
-  if (item.danger) toast.error(`已选择危险项：${item.label}`)
-  else toast.success(`触发菜单操作：${item.label}`)
+  if (item.danger) toast.error(t.value.overlays.toasts.dangerMenu(item.label))
+  else toast.success(t.value.overlays.toasts.menuAction(item.label))
 }
 </script>
 
@@ -56,46 +58,46 @@ function onDropdownSelect(item: DropdownItem) {
   <div class="demo-view">
     <div class="two-col">
       <!-- Sheets & Dialogs -->
-      <VlCard title="Sheet 抽屉与模态弹窗（VlSheet / VlDialog）" subtitle="底部 Sheet 支持手柄下拉速度关闭；Dialog 支持标准与危险强调条" accent-side="left" accent-tone="primary">
+      <VlCard :title="t.overlays.sheetDialogCardTitle" :subtitle="t.overlays.sheetDialogCardSubtitle" accent-side="left" accent-tone="primary">
         <div class="btn-wrap">
           <VlButton variant="primary" icon="arrow-up" @click="bottomSheetOpen = true">
-            打开底部 Sheet（可下滑关闭）
+            {{ t.overlays.openBottomSheet }}
           </VlButton>
           <VlButton variant="secondary" icon="panel-right" @click="sideSheetOpen = true">
-            打开右侧 Side Sheet
+            {{ t.overlays.openRightSheet }}
           </VlButton>
           <VlButton variant="outline" icon="layers" @click="dialogOpen = true">
-            打开标准 Dialog
+            {{ t.overlays.openStdDialog }}
           </VlButton>
           <VlButton variant="danger" icon="trash" @click="dangerDialogOpen = true">
-            打开危险确认 Dialog
+            {{ t.overlays.openDangerDialog }}
           </VlButton>
         </div>
       </VlCard>
 
       <!-- Toast, Tooltip, Dropdown -->
-      <VlCard title="Toast 胶囊、Tooltip 与 Dropdown 菜单" accent-side="left" accent-tone="secondary">
+      <VlCard :title="t.overlays.toastCardTitle" accent-side="left" accent-tone="secondary">
         <div class="btn-wrap">
-          <VlButton variant="primary" size="sm" @click="toast.info('信息：已保存草稿')">Toast Info</VlButton>
-          <VlButton variant="secondary" size="sm" @click="toast.success('成功：校准完成')">Toast Success</VlButton>
-          <VlButton variant="neutral" size="sm" @click="toast.warning('警告：请检查参数')">Toast Warning</VlButton>
-          <VlButton variant="danger" size="sm" @click="toast.error('错误：格式无效')">Toast Error</VlButton>
+          <VlButton variant="primary" size="sm" @click="toast.info(t.overlays.toasts.toastInfo)">{{ t.overlays.toastInfoBtn }}</VlButton>
+          <VlButton variant="secondary" size="sm" @click="toast.success(t.overlays.toasts.toastSuccess)">{{ t.overlays.toastSuccessBtn }}</VlButton>
+          <VlButton variant="neutral" size="sm" @click="toast.warning(t.overlays.toasts.toastWarning)">{{ t.overlays.toastWarningBtn }}</VlButton>
+          <VlButton variant="danger" size="sm" @click="toast.error(t.overlays.toasts.toastError)">{{ t.overlays.toastErrorBtn }}</VlButton>
         </div>
 
         <div class="btn-wrap" style="margin-top: 12px">
-          <VlTooltip text="Top 胶囊提示" placement="top">
+          <VlTooltip :text="t.overlays.topTooltipText" placement="top">
             <VlButton size="sm" variant="outline">Top Tooltip</VlButton>
           </VlTooltip>
-          <VlTooltip text="Bottom 提示" placement="bottom" shape="rect">
+          <VlTooltip :text="t.overlays.bottomTooltipText" placement="bottom" shape="rect">
             <VlButton size="sm" variant="outline">Bottom Rect</VlButton>
           </VlTooltip>
-          <VlTooltip text="Right 提示" placement="right">
+          <VlTooltip :text="t.overlays.rightTooltipText" placement="right">
             <VlButton size="sm" variant="outline">Right Tooltip</VlButton>
           </VlTooltip>
 
           <VlDropdown :items="menuItems" @select="onDropdownSelect">
             <template #trigger>
-              <VlButton size="sm" variant="primary" icon="more-horizontal">下拉菜单</VlButton>
+              <VlButton size="sm" variant="primary" icon="more-horizontal">{{ t.overlays.dropdownBtn }}</VlButton>
             </template>
           </VlDropdown>
         </div>
@@ -103,20 +105,20 @@ function onDropdownSelect(item: DropdownItem) {
     </div>
 
     <!-- Alerts -->
-    <VlCard title="扁平警告横幅（VlAlert）" surface="surface">
+    <VlCard :title="t.overlays.alertCardTitle" surface="surface">
       <div class="alert-stack">
-        <VlAlert tone="info" title="信息提示 Info">使用 4px 左侧彩色条与浅色调底色呈现层级，绝不使用阴影。</VlAlert>
-        <VlAlert tone="tip" title="最佳实践 Tip">移动端与桌面端共用同一套设计 Token，仅通过媒体查询调整流体尺度。</VlAlert>
-        <VlAlert tone="warning" title="注意事项 Warning">建议先导出 JSON 备份再执行批量删除操作。</VlAlert>
-        <VlAlert tone="danger" title="危险操作 Danger">此操作将清空历史记录且不可逆。</VlAlert>
+        <VlAlert tone="info" :title="t.overlays.alerts.infoTitle">{{ t.overlays.alerts.infoBody }}</VlAlert>
+        <VlAlert tone="tip" :title="t.overlays.alerts.tipTitle">{{ t.overlays.alerts.tipBody }}</VlAlert>
+        <VlAlert tone="warning" :title="t.overlays.alerts.warningTitle">{{ t.overlays.alerts.warningBody }}</VlAlert>
+        <VlAlert tone="danger" :title="t.overlays.alerts.dangerTitle">{{ t.overlays.alerts.dangerBody }}</VlAlert>
       </div>
     </VlCard>
 
     <!-- Progress, Skeleton, EmptyState -->
     <div class="two-col">
-      <VlCard title="进度条与进度环（VlProgress） & 骨架屏（VlSkeleton）" accent-side="top" accent-tone="primary">
+      <VlCard :title="t.overlays.progressCardTitle" accent-side="top" accent-tone="primary">
         <div class="prog-stack">
-          <VlSlider v-model="progressVal" :min="0" :max="100" label="调节演示进度" unit="%" />
+          <VlSlider v-model="progressVal" :min="0" :max="100" :label="t.overlays.progressLabel" unit="%" />
           <VlProgress :value="progressVal" show-label :height="6" />
           <VlProgress :value="progressVal" tone="secondary" show-label :height="4" />
           <VlProgress indeterminate tone="primary" :height="3" />
@@ -136,51 +138,51 @@ function onDropdownSelect(item: DropdownItem) {
         </div>
       </VlCard>
 
-      <VlCard title="空状态 M3E 形变占位符（VlEmptyState）" accent-side="top" accent-tone="secondary">
+      <VlCard :title="t.overlays.emptyCardTitle" accent-side="top" accent-tone="secondary">
         <VlEmptyState
           compact
           shape="clover-4"
           :morph-shapes="['clover-4', 'cookie-7', 'flower', 'puffy']"
-          title="尚未选中任何实验样本"
-          description="支持 M3E 几何形态循环呼吸变形与丝滑胶囊触发按钮。"
-          cta-label="立即创建示例"
+          :title="t.overlays.emptyTitle"
+          :description="t.overlays.emptyDesc"
+          :cta-label="t.overlays.emptyCta"
           cta-icon="arrow-right"
-          @action="toast.success('触发 EmptyState CTA 回调')"
+          @action="toast.success(t.overlays.toasts.emptyCta)"
         />
       </VlCard>
     </div>
 
     <!-- Portaled Overlays -->
     <VlCard
-      title="气泡浮层、微确认、右键菜单与全局命令面板"
-      subtitle="提炼自 CatsOnPlains 正则搜索与成熟 UX 浮层家族（支持 Ctrl+K 呼出全文正则搜索面板）"
+      :title="t.overlays.popoverCardTitle"
+      :subtitle="t.overlays.popoverCardSubtitle"
       accent-side="left"
       accent-tone="primary"
     >
       <div class="btn-wrap">
-        <VlPopover title="扁平信息气泡（VlPopover）" closable>
+        <VlPopover :title="t.overlays.popoverTitle" closable>
           <template #trigger>
-            <VlButton variant="outline" size="sm" icon="info">打开 Popover</VlButton>
+            <VlButton variant="outline" size="sm" icon="info">{{ t.overlays.popoverTrigger }}</VlButton>
           </template>
-          <p style="margin: 0">零阴影直角悬浮气泡，支持 <code>click / hover</code> 与自动闭合。</p>
+          <p style="margin: 0">{{ t.overlays.popoverBody }}</p>
         </VlPopover>
 
         <VlPopconfirm
-          title="确认重置实验记录？"
-          description="将清除当前会话所有未归档的参数草稿。"
+          :title="t.overlays.popconfirmTitle"
+          :description="t.overlays.popconfirmDesc"
           tone="danger"
-          @confirm="toast.error('已确认重置')"
-          @cancel="toast.info('已取消操作')"
+          @confirm="toast.error(t.overlays.toasts.popConfirm)"
+          @cancel="toast.info(t.overlays.toasts.popCancel)"
         >
-          <VlButton variant="danger" size="sm" icon="trash">危险 Popconfirm</VlButton>
+          <VlButton variant="danger" size="sm" icon="trash">{{ t.overlays.popconfirmTrigger }}</VlButton>
         </VlPopconfirm>
 
         <VlContextMenu :items="menuItems" @select="onDropdownSelect">
-          <div class="ctx-area shape-rect">在此区域点击鼠标右键（ContextMenu）</div>
+          <div class="ctx-area shape-rect">{{ t.overlays.contextArea }}</div>
         </VlContextMenu>
 
         <VlButton variant="primary" size="sm" icon="search" @click="paletteOpen = true">
-          打开命令搜索面板（Ctrl+K）
+          {{ t.overlays.openCommandBtn }}
         </VlButton>
       </div>
     </VlCard>
@@ -188,39 +190,50 @@ function onDropdownSelect(item: DropdownItem) {
     <VlCommandPalette
       v-model:open="paletteOpen"
       :items="paletteItems"
-      @select="(it) => toast.success(`命令跳转：${it.label}`)"
+      @select="(it) => toast.success(t.overlays.toasts.commandJump(it.label))"
     />
 
-    <VlSheet v-model:open="bottomSheetOpen" title="移动端底部 Sheet 抽屉">
+    <VlSheet v-model:open="bottomSheetOpen" :title="t.overlays.bottomSheetTitle">
       <div class="sheet-demo-body">
-        <p>向下拖拽顶部手柄或点击右上角关闭按钮即可收起此抽屉。</p>
-        <VlInput v-model="noteInput" label="快捷输入示例" placeholder="输入内容试试…" clearable />
+        <p>{{ t.overlays.bottomSheetDesc }}</p>
+        <VlInput
+          v-model="noteInput"
+          :label="t.overlays.bottomSheetInputLabel"
+          :placeholder="t.overlays.bottomSheetInputPlaceholder"
+          clearable
+        />
       </div>
       <template #footer>
-        <VlButton variant="neutral" @click="bottomSheetOpen = false">取消</VlButton>
-        <VlButton variant="primary" icon="check" @click="bottomSheetOpen = false; toast.success('Sheet 已保存')">保存</VlButton>
+        <VlButton variant="neutral" @click="bottomSheetOpen = false">{{ t.overlays.cancel }}</VlButton>
+        <VlButton variant="primary" icon="check" @click="bottomSheetOpen = false; toast.success(t.overlays.toasts.sheetSaved)">
+          {{ t.overlays.save }}
+        </VlButton>
       </template>
     </VlSheet>
 
-    <VlSheet v-model:open="sideSheetOpen" placement="right" accent-tone="secondary" title="右侧滑入 Sheet">
+    <VlSheet v-model:open="sideSheetOpen" placement="right" accent-tone="secondary" :title="t.overlays.sideSheetTitle">
       <p style="margin: 0; font-size: var(--ui-font-md); color: var(--text-secondary); line-height: 1.7">
-        <code>VlSheet</code> 同时支持 <code>bottom</code>、<code>left</code> 与 <code>right</code> 三个方向滑入。
+        {{ t.overlays.sideSheetDesc }}
       </p>
     </VlSheet>
 
-    <VlDialog v-model:open="dialogOpen" title="标准模态弹窗" description="严格直角容器 + 3px 顶部主题色条">
-      你可以通过点击遮罩、关闭按钮或按下 <kbd>Esc</kbd> 键退出弹窗。
+    <VlDialog v-model:open="dialogOpen" :title="t.overlays.dialogTitle" :description="t.overlays.dialogDesc">
+      {{ t.overlays.dialogBody }}
       <template #footer>
-        <VlButton variant="neutral" @click="dialogOpen = false">关闭</VlButton>
-        <VlButton variant="primary" @click="dialogOpen = false; toast.info('已确认')">确认</VlButton>
+        <VlButton variant="neutral" @click="dialogOpen = false">{{ t.overlays.close }}</VlButton>
+        <VlButton variant="primary" @click="dialogOpen = false; toast.info(t.overlays.toasts.dialogConfirmed)">
+          {{ t.overlays.confirm }}
+        </VlButton>
       </template>
     </VlDialog>
 
-    <VlDialog v-model:open="dangerDialogOpen" tone="danger" title="危险操作确认" description="请核对以下不可逆变更">
-      确认清空当前测试环境中的临时演示缓存吗？
+    <VlDialog v-model:open="dangerDialogOpen" tone="danger" :title="t.overlays.dangerDialogTitle" :description="t.overlays.dangerDialogDesc">
+      {{ t.overlays.dangerDialogBody }}
       <template #footer>
-        <VlButton variant="neutral" @click="dangerDialogOpen = false">取消</VlButton>
-        <VlButton variant="danger" icon="trash" @click="dangerDialogOpen = false; toast.error('已确认执行')">确认删除</VlButton>
+        <VlButton variant="neutral" @click="dangerDialogOpen = false">{{ t.overlays.cancel }}</VlButton>
+        <VlButton variant="danger" icon="trash" @click="dangerDialogOpen = false; toast.error(t.overlays.toasts.dangerConfirmed)">
+          {{ t.overlays.confirmDelete }}
+        </VlButton>
       </template>
     </VlDialog>
   </div>

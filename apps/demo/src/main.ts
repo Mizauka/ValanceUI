@@ -4,7 +4,7 @@ import '@valance-ui/vue/base.css'
 import '@valance-ui/vue/workbench.css'
 import '@valance-ui/vue/prose.css'
 import '@valance-ui/vue/style.css'
-import ValanceUI, { configureThemeMode } from '@valance-ui/vue'
+import ValanceUI, { configureLocale, configureThemeMode } from '@valance-ui/vue'
 import App from './App.vue'
 
 configureThemeMode({
@@ -12,5 +12,7 @@ configureThemeMode({
   accentStorageKey: 'vl-demo-accent',
   syncMetaThemeColor: true,
 })
+
+configureLocale({})
 
 createApp(App).use(ValanceUI).mount('#app')

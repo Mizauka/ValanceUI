@@ -5,6 +5,9 @@ import VlIconButton from '../primitives/VlIconButton.vue'
 import VlCalendar from './VlCalendar.vue'
 import { useViewportTier } from '../../composables/useViewportTier'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -23,7 +26,6 @@ const props = withDefaults(
   }>(),
   {
     modelValue: '',
-    placeholder: '选择日期 (YYYY-MM-DD)',
     tone: 'primary',
     disabled: false,
     clearable: false,
@@ -120,12 +122,12 @@ onBeforeUnmount(() => {
       @click="toggle"
     >
       <VlIcon name="calendar" :size="14" class="vl-date-icon" />
-      <span class="vl-date-val">{{ modelValue || placeholder }}</span>
+      <span class="vl-date-val">{{ modelValue || placeholder || messages.datePicker.placeholder }}</span>
       <button
         v-if="clearable && modelValue && !disabled"
         type="button"
         class="vl-date-clear shape-circle"
-        aria-label="清除日期"
+        :aria-label="messages.datePicker.clearLabel"
         @click.stop="emit('update:modelValue', '')"
       >
         <VlIcon name="close" :size="10" />
@@ -140,7 +142,7 @@ onBeforeUnmount(() => {
           :class="isDialogMode ? 'vl-picker-dialog-overlay shape-rect' : 'vl-date-pop-host'"
           :role="isDialogMode ? 'dialog' : undefined"
           :aria-modal="isDialogMode ? 'true' : undefined"
-          :aria-label="isDialogMode ? (label || '选择日期') : undefined"
+          :aria-label="isDialogMode ? (label || messages.datePicker.selectDate) : undefined"
           @click.self="isDialogMode && (open = false)"
         >
           <div
@@ -152,13 +154,13 @@ onBeforeUnmount(() => {
             <template v-if="isDialogMode">
               <div class="vl-date-dialog-bar shape-rect" :class="`t-${tone}`" />
               <div class="vl-date-dialog-head">
-                <span class="vl-date-dialog-title">{{ label || '选择日期' }}</span>
+                <span class="vl-date-dialog-title">{{ label || messages.datePicker.selectDate }}</span>
                 <VlIconButton
                   icon="close"
                   size="sm"
                   morph-on-hover
-                  title="关闭"
-                  aria-label="关闭"
+                  :title="messages.common.close"
+                  :aria-label="messages.common.close"
                   class="vl-date-dialog-close"
                   @click="open = false"
                 />

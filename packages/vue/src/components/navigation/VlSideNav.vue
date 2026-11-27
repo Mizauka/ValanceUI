@@ -3,6 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import { useNavScrubGesture } from '../../composables/useNavScrubGesture'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface SideNavItem {
   id: string
@@ -31,9 +34,7 @@ const props = withDefaults(
     expandedIds?: string[]
     ariaLabel?: string
   }>(),
-  {
-    ariaLabel: '侧边导航菜单',
-  },
+  {},
 )
 
 const emit = defineEmits<{
@@ -217,7 +218,7 @@ onBeforeUnmount(() => {
     class="vl-side-nav"
     :class="{ pressed: scrubPressed, dragging: scrubDragging }"
     role="tree"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.nav.sideNavAria"
     @transitionend="measureGlide(false)"
   >
     <span

@@ -3,6 +3,9 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import VlShape from '../primitives/VlShape.vue'
 import type { M3ShapeName } from '../../styles/m3Shapes'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const PULL_STAGE_SHAPES: M3ShapeName[] = ['circle', 'cookie-4', 'clover-4', 'sunny', 'flower']
 
@@ -22,9 +25,6 @@ const props = withDefaults(
     threshold: 72,
     maxPull: 118,
     tone: 'primary',
-    pullLabel: '下拉刷新数据',
-    releaseLabel: '松开立即刷新',
-    refreshingLabel: '正在同步刷新…',
     disabled: false,
   },
 )
@@ -56,9 +56,9 @@ const currentHeaderHeight = computed(() => {
 const readyToRelease = computed(() => !props.refreshing && pullDistance.value >= props.threshold)
 
 const statusText = computed(() => {
-  if (props.refreshing) return props.refreshingLabel
-  if (readyToRelease.value) return props.releaseLabel
-  return props.pullLabel
+  if (props.refreshing) return props.refreshingLabel ?? messages.value.pullRefresh.refreshingLabel
+  if (readyToRelease.value) return props.releaseLabel ?? messages.value.pullRefresh.releaseLabel
+  return props.pullLabel ?? messages.value.pullRefresh.pullLabel
 })
 
 const pullMorphPair = computed<{ from: M3ShapeName; to: M3ShapeName; t: number }>(() => {

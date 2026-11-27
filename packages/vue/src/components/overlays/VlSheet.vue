@@ -3,6 +3,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const isClient = typeof window !== 'undefined'
 
@@ -743,18 +746,18 @@ onBeforeUnmount(() => {
                 type="button"
                 class="vl-sheet-detent-btn shape-pill"
                 :class="{ active: internalDetent === 'full' }"
-                :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
+                :aria-label="internalDetent === 'full' ? messages.sheet.toHalfAria : messages.sheet.toFullAria"
                 @pointerdown.stop
                 @click="toggleDetent"
               >
-                {{ internalDetent === 'full' ? '半屏' : '全高' }}
+                {{ internalDetent === 'full' ? messages.sheet.halfLabel : messages.sheet.fullLabel }}
               </button>
               <VlIconButton
                 icon="close"
                 size="sm"
                 morph-on-hover
-                title="关闭"
-                aria-label="关闭"
+                :title="messages.common.close"
+                :aria-label="messages.common.close"
                 class="vl-sheet-close-btn"
                 @pointerdown.stop
                 @click="close"

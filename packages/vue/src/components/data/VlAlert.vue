@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -48,7 +51,7 @@ const resolvedIcon = computed(() => props.icon ?? defaultIconMap[props.tone] ?? 
       v-if="closable"
       type="button"
       class="vl-alert-close shape-circle"
-      aria-label="关闭提示"
+      :aria-label="messages.alert.closeLabel"
       @click="emit('close')"
     >
       <VlIcon name="close" :size="11" />

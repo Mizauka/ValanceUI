@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface DroppedFileItem {
   name: string
@@ -20,8 +23,6 @@ const props = withDefaults(
   {
     multiple: true,
     disabled: false,
-    title: '拖入文件到此处，或点击选择上传',
-    subtitle: '支持 JSON、Markdown、CSV 等本地文件导入',
   },
 )
 
@@ -84,8 +85,8 @@ function removeFile(idx: number) {
       <span class="vl-dropzone-badge shape-circle">
         <VlIcon name="upload" :size="18" />
       </span>
-      <strong class="vl-dropzone-title">{{ title }}</strong>
-      <span class="vl-dropzone-sub">{{ subtitle }}</span>
+      <strong class="vl-dropzone-title">{{ title ?? messages.fileDropzone.title }}</strong>
+      <span class="vl-dropzone-sub">{{ subtitle ?? messages.fileDropzone.subtitle }}</span>
     </div>
 
     <div v-if="selectedFiles.length" class="vl-dropzone-list">
@@ -93,7 +94,7 @@ function removeFile(idx: number) {
         <VlIcon name="doc" :size="14" class="vl-file-icon" />
         <span class="vl-file-name">{{ file.name }}</span>
         <span class="vl-file-size">{{ formatSize(file.size) }}</span>
-        <button type="button" class="vl-file-del shape-circle" aria-label="移除文件" @click="removeFile(idx)">
+        <button type="button" class="vl-file-del shape-circle" :aria-label="messages.fileDropzone.removeFile" @click="removeFile(idx)">
           <VlIcon name="close" :size="10" />
         </button>
       </div>

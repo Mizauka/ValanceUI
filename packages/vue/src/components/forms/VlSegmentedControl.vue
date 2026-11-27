@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import { useNavScrubGesture } from '../../composables/useNavScrubGesture'
+import { useLocale } from '../../composables/useLocale'
 
 export interface SegmentOption<V extends string = string> {
   value: V
@@ -10,6 +11,8 @@ export interface SegmentOption<V extends string = string> {
   icon?: IconName
   title?: string
 }
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -27,7 +30,6 @@ const props = withDefaults(
     surface: 'activity',
     fullWidth: false,
     variant: 'sliding',
-    ariaLabel: '分段选择',
   },
 )
 
@@ -176,7 +178,7 @@ onBeforeUnmount(() => {
     class="vl-seg-track"
     :class="[`size-${size}`, `surf-${surface}`, { 'full-width': fullWidth, pressed: scrubPressed, dragging: scrubDragging }]"
     role="group"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.segmentedControl.ariaLabel"
   >
     <span
       v-show="ready && indicatorW > 0"
@@ -212,7 +214,7 @@ onBeforeUnmount(() => {
     class="vl-morph-grid"
     :style="{ gridTemplateColumns: `repeat(${columns ?? Math.max(1, options.length)}, 1fr)` }"
     role="group"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.segmentedControl.ariaLabel"
   >
     <button
       v-for="opt in options"

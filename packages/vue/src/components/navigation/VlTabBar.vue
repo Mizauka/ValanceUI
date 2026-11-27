@@ -2,6 +2,9 @@
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import VlScrollArea from '../layout/VlScrollArea.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface TabBarItem {
   id: string
@@ -19,10 +22,7 @@ withDefaults(
     emptyText?: string
     ariaLabel?: string
   }>(),
-  {
-    emptyText: '暂无打开的标签页',
-    ariaLabel: '工作区标签页',
-  },
+  {},
 )
 
 const emit = defineEmits<{
@@ -32,7 +32,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="vl-tabbar-wrap shape-rect" role="tablist" :aria-label="ariaLabel">
+  <div class="vl-tabbar-wrap shape-rect" role="tablist" :aria-label="ariaLabel ?? messages.nav.tabBarAria">
     <VlScrollArea class="vl-tabs-scroll" orientation="horizontal" wheel-horizontal>
       <div class="vl-tabs-row">
         <div
@@ -66,7 +66,7 @@ const emit = defineEmits<{
             v-if="!tab.pinned"
             type="button"
             class="vl-tab-close shape-circle"
-            title="关闭标签页"
+            :title="messages.nav.closeTabTitle"
             @click.stop="emit('close', tab.id)"
           >
             <VlIcon name="close" :size="10" />
@@ -74,7 +74,7 @@ const emit = defineEmits<{
         </div>
 
         <div v-if="tabs.length === 0" class="vl-tab-placeholder">
-          {{ emptyText }}
+          {{ emptyText ?? messages.nav.tabBarEmpty }}
         </div>
       </div>
     </VlScrollArea>

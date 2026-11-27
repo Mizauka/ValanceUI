@@ -91,6 +91,7 @@ export type BuiltinIconName =
   | 'rss'
   | 'github'
   | 'mail'
+  | 'globe'
   | 'gesture'
 
 export type IconName = BuiltinIconName | (string & {})
@@ -472,6 +473,11 @@ export const ICON_REGISTRY: Record<string, IconNode[]> = {
     r(1.8, 3.2, 12.4, 9.6),
     p('M2.2 3.8L8 8.6L13.8 3.8', { 'stroke-width': 1.35 }),
   ],
+  globe: [
+    c(8, 8, 5.8, { 'stroke-width': 1.35 }),
+    l(2.2, 8, 13.8, 8, { 'stroke-width': 1.25 }),
+    p('M8 2.2C10.1 4.4 10.1 11.6 8 13.8C5.9 11.6 5.9 4.4 8 2.2', { 'stroke-width': 1.25 }),
+  ],
   gesture: [
     c(5, 5, 2.2),
     p('M8.5 5H13.5M11.5 2.8L13.8 5L11.5 7.2'),
@@ -528,7 +534,7 @@ export const ICON_CATEGORIES: IconCategory[] = [
     label: '科学、设备与社交',
     icons: [
       'curve', 'clock', 'flask', 'calendar', 'biotech', 'pill',
-      'smartphone', 'tablet', 'monitor', 'user', 'rss', 'github', 'mail',
+      'smartphone', 'tablet', 'monitor', 'globe', 'user', 'rss', 'github', 'mail',
     ],
   },
 ]

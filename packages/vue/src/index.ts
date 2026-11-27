@@ -370,6 +370,26 @@ export {
 
 export { useWidthTransition, type WidthTransitionOptions } from './composables/useWidthTransition'
 
+export {
+  useLocale,
+  initLocale,
+  configureLocale,
+  detectBrowserLocale,
+  normalizeValanceLocale,
+  getActiveLocale,
+  getVlMessages,
+  getLocalizedShapeLabel,
+  getLocalizedIconGroupLabel,
+  getLocalizedPaletteName,
+  getLocalizedPaletteSubtitle,
+  createLocaleInitScript,
+  type ValanceLocale,
+  type LocalePreference,
+  type LocaleConfigOptions,
+  type LocaleSelectOption,
+  type VlLocaleMessages,
+} from './composables/useLocale'
+
 // ─── Plugin Registration ─────────────────────────────────────────────
 const components = {
   VlIcon,

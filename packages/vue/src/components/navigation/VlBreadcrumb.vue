@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
+
 export interface BreadcrumbItem {
   label: string
   to?: string
@@ -22,7 +26,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="vl-breadcrumb-bar shape-rect">
-    <nav class="vl-breadcrumbs" aria-label="面包屑导航">
+    <nav class="vl-breadcrumbs" :aria-label="messages.nav.breadcrumbsAria">
       <template v-for="(item, idx) in items" :key="`${item.label}-${idx}`">
         <span v-if="idx > 0" class="vl-crumb-sep">{{ separator }}</span>
         <button

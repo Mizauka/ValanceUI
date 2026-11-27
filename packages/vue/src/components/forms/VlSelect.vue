@@ -3,6 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import VlScrollArea from '../layout/VlScrollArea.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface SelectOption {
   value: string | number
@@ -32,11 +35,8 @@ const props = withDefaults(
   {
     modelValue: '',
     shape: 'rect',
-    placeholder: '请选择…',
     disabled: false,
     searchable: false,
-    searchPlaceholder: '搜索选项…',
-    emptyText: '无匹配选项',
     teleport: true,
   },
 )
@@ -255,13 +255,13 @@ onBeforeUnmount(() => {
       :disabled="disabled"
       :aria-expanded="open"
       aria-haspopup="listbox"
-      :aria-label="ariaLabel ?? label ?? placeholder"
+      :aria-label="ariaLabel ?? label ?? placeholder ?? messages.select.placeholder"
       @click="toggleMenu"
       @keydown="onTriggerKeydown"
     >
       <VlIcon v-if="selectedOption?.icon" :name="selectedOption.icon" :size="14" class="vl-select-lead-icon" />
       <span class="vl-select-value-text">
-        {{ selectedOption ? selectedOption.label : placeholder }}
+        {{ selectedOption ? selectedOption.label : (placeholder ?? messages.select.placeholder) }}
       </span>
       <span v-if="selectedOption?.badge" class="vl-select-val-badge shape-pill">
         {{ selectedOption.badge }}
@@ -293,15 +293,15 @@ onBeforeUnmount(() => {
                 v-model="query"
                 type="text"
                 class="vl-select-search-input"
-                :placeholder="searchPlaceholder"
-                aria-label="过滤选项"
+                :placeholder="searchPlaceholder ?? messages.select.searchPlaceholder"
+                :aria-label="messages.select.filterAria"
               />
             </div>
           </div>
 
           <VlScrollArea max-height="252px" class="vl-select-scroll">
             <div v-if="filteredOptions.length === 0" class="vl-select-empty">
-              {{ emptyText }}
+              {{ emptyText ?? messages.select.emptyText }}
             </div>
 
             <button

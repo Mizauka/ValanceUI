@@ -6,6 +6,9 @@ import type { IconName } from '../icons/iconRegistry'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import VlBottomDock, { type BottomDockItem } from '../navigation/VlBottomDock.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export type DockSheetDetent = 'docked' | 'half' | 'full'
 
@@ -48,9 +51,7 @@ const props = withDefaults(
     fullRatio: 0.88,
     floating: true,
     contained: false,
-    title: '面板',
     icon: 'comment',
-    ariaLabel: '底部停靠展开面板',
   },
 )
 
@@ -479,7 +480,7 @@ onBeforeUnmount(() => {
       'nav-dragging': navFollow.dragging && !isExpanded,
     }"
     :style="sheetStyle"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.dockSheet.ariaLabel"
   >
     <!-- Upper Draggable Peek Header -->
     <div
@@ -501,7 +502,7 @@ onBeforeUnmount(() => {
             <span class="vl-dock-icon" :class="{ active: isExpanded, 'is-circle': hasNav }">
               <VlIcon :name="icon" :size="hasNav ? 15 : 14" />
             </span>
-            <span class="vl-dock-title">{{ title }}</span>
+            <span class="vl-dock-title">{{ title ?? messages.dockSheet.defaultTitle }}</span>
             <span v-if="badge" class="vl-dock-badge shape-pill">{{ badge }}</span>
           </slot>
         </div>
@@ -514,11 +515,11 @@ onBeforeUnmount(() => {
             :variant="isExpanded ? 'primary' : 'neutral'"
             class="vl-dock-action-pill"
             :class="{ expanded: isExpanded }"
-            :title="detent === 'docked' ? '展开面板' : detent === 'half' ? '全屏展开' : '收起'"
+            :title="detent === 'docked' ? messages.dockSheet.expandTitle : detent === 'half' ? messages.dockSheet.fullTitle : messages.dockSheet.collapseTitle"
             @pointerdown.stop
             @click="cycleDetent"
           >
-            {{ detent === 'docked' ? '展开' : detent === 'half' ? '全屏' : '收起' }}
+            {{ detent === 'docked' ? messages.dockSheet.expandPill : detent === 'half' ? messages.dockSheet.fullPill : messages.dockSheet.collapsePill }}
           </VlButton>
         </div>
       </div>
@@ -550,7 +551,7 @@ onBeforeUnmount(() => {
         :model-value="activeNav ?? navItems![0]?.id ?? ''"
         :items="navItems!"
         :variant="floating ? 'capsule' : 'bar'"
-        aria-label="底部导航"
+        :aria-label="messages.dockSheet.bottomNavAria"
         @update:model-value="handleNavSelect"
         @press-change="navPressed = $event"
         @drag-follow="navFollow = $event"

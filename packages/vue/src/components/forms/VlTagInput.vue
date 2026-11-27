@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import VlTag from '../primitives/VlTag.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -15,7 +18,6 @@ const props = withDefaults(
     disabled?: boolean
   }>(),
   {
-    placeholder: '输入标签后按 Enter 添加…',
     maxTags: 20,
     tone: 'secondary',
     shape: 'pill',
@@ -86,7 +88,7 @@ function onKeydown(e: KeyboardEvent) {
         v-model="draft"
         type="text"
         class="vl-tag-input-raw"
-        :placeholder="modelValue.length < maxTags ? placeholder : `最多 ${maxTags} 项`"
+        :placeholder="modelValue.length < maxTags ? (placeholder ?? messages.tagInput.placeholder) : messages.tagInput.maxItems(maxTags)"
         :disabled="disabled || modelValue.length >= maxTags"
         @keydown="onKeydown"
         @blur="addTag(draft)"
@@ -96,7 +98,7 @@ function onKeydown(e: KeyboardEvent) {
         v-if="draft.trim() && !disabled"
         type="button"
         class="vl-tag-add-btn shape-circle"
-        aria-label="添加标签"
+        :aria-label="messages.tagInput.addTagAria"
         @click.stop="addTag(draft)"
       >
         <VlIcon name="plus" :size="11" />

@@ -2,6 +2,9 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import VlButton from '../primitives/VlButton.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 withDefaults(
   defineProps<{
@@ -13,8 +16,6 @@ withDefaults(
     align?: 'left' | 'right'
   }>(),
   {
-    confirmText: '确认',
-    cancelText: '取消',
     tone: 'danger',
     align: 'left',
   },
@@ -75,7 +76,7 @@ function handleCancel() {
 
         <div class="vl-popconfirm-actions">
           <VlButton size="xs" variant="neutral" shape="morph" class="vl-pc-btn cancel" @click="handleCancel">
-            {{ cancelText }}
+            {{ cancelText ?? messages.common.cancel }}
           </VlButton>
           <VlButton
             size="xs"
@@ -84,7 +85,7 @@ function handleCancel() {
             class="vl-pc-btn confirm"
             @click="handleConfirm"
           >
-            {{ confirmText }}
+            {{ confirmText ?? messages.common.confirm }}
           </VlButton>
         </div>
       </div>

@@ -5,6 +5,9 @@ import VlButton from '../primitives/VlButton.vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import { useViewportTier } from '../../composables/useViewportTier'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -29,7 +32,6 @@ const props = withDefaults(
     inline: false,
     embedded: false,
     disabled: false,
-    placeholder: '选择时间…',
     teleport: true,
     mobileMode: 'dialog',
   },
@@ -357,7 +359,7 @@ onBeforeUnmount(() => {
       @click="open ? (open = false) : openPopover()"
     >
       <VlIcon name="clock" :size="14" class="vl-time-icon" />
-      <span class="vl-time-val">{{ displayText || placeholder }}</span>
+      <span class="vl-time-val">{{ displayText || placeholder || messages.timePicker.placeholder }}</span>
       <VlIcon name="chevron-down" :size="12" class="vl-time-caret" />
     </button>
 
@@ -369,7 +371,7 @@ onBeforeUnmount(() => {
           :class="isDialogMode ? 'vl-picker-dialog-overlay shape-rect' : 'vl-picker-pop-host'"
           :role="isDialogMode ? 'dialog' : undefined"
           :aria-modal="isDialogMode ? 'true' : undefined"
-          :aria-label="isDialogMode ? (label || '选择时间') : undefined"
+          :aria-label="isDialogMode ? (label || messages.timePicker.selectTime) : undefined"
           @click.self="isDialogMode && (open = false)"
         >
           <div
@@ -389,13 +391,13 @@ onBeforeUnmount(() => {
             <template v-if="isDialogMode">
               <div class="vl-picker-dialog-bar shape-rect" :class="`t-${tone}`" />
               <div class="vl-picker-dialog-head">
-                <span class="vl-picker-dialog-title">{{ label || '选择时间' }}</span>
+                <span class="vl-picker-dialog-title">{{ label || messages.timePicker.selectTime }}</span>
                 <VlIconButton
                   icon="close"
                   size="sm"
                   morph-on-hover
-                  title="关闭"
-                  aria-label="关闭"
+                  :title="messages.common.close"
+                  :aria-label="messages.common.close"
                   class="vl-picker-dialog-close"
                   @click="open = false"
                 />
@@ -409,7 +411,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="vl-digit-box shape-rect"
                 :class="{ active: activeMode === 'hour' }"
-                aria-label="选择小时"
+                :aria-label="messages.timePicker.selectHour"
                 @click="activeMode = 'hour'"
               >
                 {{ displayHourBox }}
@@ -419,7 +421,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="vl-digit-box shape-rect"
                 :class="{ active: activeMode === 'minute' }"
-                aria-label="选择分钟"
+                :aria-label="messages.timePicker.selectMinute"
                 @click="activeMode = 'minute'"
               >
                 {{ pad2(draftMinute) }}
@@ -455,7 +457,7 @@ onBeforeUnmount(() => {
                 class="vl-clock-svg"
                 viewBox="0 0 220 220"
                 role="slider"
-                :aria-label="activeMode === 'hour' ? '拨动时针选择小时' : '拨动分针选择分钟'"
+                :aria-label="activeMode === 'hour' ? messages.timePicker.dialHourAria : messages.timePicker.dialMinuteAria"
                 :aria-valuenow="activeMode === 'hour' ? draftHour : draftMinute"
                 @pointerdown="onDialPointerDown"
                 @pointermove="onDialPointerMove"
@@ -531,7 +533,7 @@ onBeforeUnmount(() => {
             <div v-else key="mode-input" class="vl-manual-stage">
               <div class="vl-manual-pair">
                 <div class="vl-manual-col">
-                  <label class="vl-manual-lbl">时 (0–23)</label>
+                  <label class="vl-manual-lbl">{{ messages.timePicker.hourLabel }}</label>
                   <input
                     v-model="manualHourText"
                     type="number"
@@ -543,7 +545,7 @@ onBeforeUnmount(() => {
                 </div>
                 <span class="vl-digit-colon">:</span>
                 <div class="vl-manual-col">
-                  <label class="vl-manual-lbl">分 (0–59)</label>
+                  <label class="vl-manual-lbl">{{ messages.timePicker.minuteLabel }}</label>
                   <input
                     v-model="manualMinText"
                     type="number"
@@ -563,14 +565,14 @@ onBeforeUnmount(() => {
               :icon="entryMode === 'dial' ? 'type' : 'clock'"
               size="sm"
               morph-on-hover
-              :title="entryMode === 'dial' ? '切换数字输入' : '切换表盘拨动'"
+              :title="entryMode === 'dial' ? messages.timePicker.switchToInput : messages.timePicker.switchToDial"
               class="vl-time-mode-btn"
               @click="entryMode = entryMode === 'dial' ? 'input' : 'dial'"
             />
 
             <div class="vl-time-actions">
               <VlButton size="sm" variant="neutral" shape="morph" class="vl-time-ghost" @click="setNow">
-                此刻
+                {{ messages.common.now }}
               </VlButton>
               <VlButton
                 v-if="!inline"
@@ -580,7 +582,7 @@ onBeforeUnmount(() => {
                 class="vl-time-confirm"
                 @click="commitDraft(true); open = false"
               >
-                确定
+                {{ messages.common.ok }}
               </VlButton>
             </div>
           </div>

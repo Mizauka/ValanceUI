@@ -2,6 +2,9 @@
 import { ref, computed, onMounted, onBeforeUnmount, useSlots } from 'vue'
 import { usePushDrawerGesture } from '../../composables/usePushDrawerGesture'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -21,8 +24,6 @@ const props = withDefaults(
     contained: false,
     disabled: false,
     scrimOpacity: 0.28,
-    ariaLabel: '左侧推挤抽屉',
-    rightAriaLabel: '右侧推挤抽屉',
   },
 )
 
@@ -185,7 +186,7 @@ defineExpose({
       :class="{ dragging: isDragging, contained }"
       :style="drawerTransformStyle"
       :aria-hidden="!open && !isDragging"
-      :aria-label="ariaLabel"
+      :aria-label="ariaLabel ?? messages.pushDrawer.leftAriaLabel"
     >
       <slot name="drawer" />
     </aside>
@@ -211,7 +212,7 @@ defineExpose({
       :class="{ dragging: isDragging, contained }"
       :style="rightDrawerTransformStyle"
       :aria-hidden="!rightOpen && !isDragging"
-      :aria-label="rightAriaLabel"
+      :aria-label="rightAriaLabel ?? messages.pushDrawer.rightAriaLabel"
     >
       <slot name="right-drawer" />
     </aside>

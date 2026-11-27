@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 withDefaults(
   defineProps<{
@@ -23,8 +26,6 @@ withDefaults(
     showRightToggle: true,
     leftActive: false,
     rightActive: false,
-    leftTitle: '显示/隐藏左侧面板',
-    rightTitle: '显示/隐藏右侧面板',
   },
 )
 
@@ -44,7 +45,7 @@ const emit = defineEmits<{
             type="button"
             class="vl-panel-toggle"
             :class="{ active: leftActive }"
-            :title="leftTitle"
+            :title="leftTitle ?? messages.nav.titleBarLeftTitle"
             @click="emit('toggle-left')"
           >
             <VlIcon name="panel-left" :size="16" />
@@ -85,7 +86,7 @@ const emit = defineEmits<{
           type="button"
           class="vl-panel-toggle secondary"
           :class="{ active: rightActive }"
-          :title="rightTitle"
+          :title="rightTitle ?? messages.nav.titleBarRightTitle"
           @click="emit('toggle-right')"
         >
           <VlIcon :name="mode === 'mobile' ? 'comment' : 'panel-right'" :size="15" />

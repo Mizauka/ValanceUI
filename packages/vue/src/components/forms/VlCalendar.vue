@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import VlButton from '../primitives/VlButton.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -61,11 +64,11 @@ watch(
   },
 )
 
-const WEEKDAYS_MON = ['一', '二', '三', '四', '五', '六', '日']
-const WEEKDAYS_SUN = ['日', '一', '二', '三', '四', '五', '六']
-const weekdays = computed(() => (props.firstDayOfWeek === 0 ? WEEKDAYS_SUN : WEEKDAYS_MON))
+const weekdays = computed(() =>
+  props.firstDayOfWeek === 0 ? messages.value.calendar.weekdaysSun : messages.value.calendar.weekdaysMon,
+)
 
-const MONTH_NAMES = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+const monthNames = computed(() => messages.value.calendar.months)
 
 interface DayCell {
   iso: string
@@ -188,14 +191,14 @@ function jumpToday() {
     class="vl-calendar shape-rect"
     :class="[`t-${tone}`, { 'is-embedded': embedded }]"
     role="group"
-    aria-label="自绘日历选择器"
+    :aria-label="messages.calendar.ariaLabel"
   >
     <div class="vl-cal-head">
       <button
         type="button"
         class="vl-cal-nav shape-circle"
-        aria-label="上一年"
-        title="上一年"
+        :aria-label="messages.calendar.prevYear"
+        :title="messages.calendar.prevYear"
         @click="viewYear--"
       >
         <VlIcon name="chevron-left" :size="12" />
@@ -204,8 +207,8 @@ function jumpToday() {
         v-if="pickerMode === 'days'"
         type="button"
         class="vl-cal-nav shape-circle"
-        aria-label="上一月"
-        title="上一月"
+        :aria-label="messages.calendar.prevMonth"
+        :title="messages.calendar.prevMonth"
         @click="stepMonth(-1)"
       >
         <VlIcon name="arrow-left" :size="11" />
@@ -216,7 +219,7 @@ function jumpToday() {
         class="vl-cal-title shape-pill"
         @click="pickerMode = pickerMode === 'days' ? 'months' : 'days'"
       >
-        <span>{{ viewYear }}年 {{ String(viewMonth).padStart(2, '0') }}月</span>
+        <span>{{ messages.calendar.formatYearMonth(viewYear, viewMonth) }}</span>
         <VlIcon name="chevron-down" :size="11" />
       </button>
 
@@ -224,8 +227,8 @@ function jumpToday() {
         v-if="pickerMode === 'days'"
         type="button"
         class="vl-cal-nav shape-circle"
-        aria-label="下一月"
-        title="下一月"
+        :aria-label="messages.calendar.nextMonth"
+        :title="messages.calendar.nextMonth"
         @click="stepMonth(1)"
       >
         <VlIcon name="arrow-right" :size="11" />
@@ -233,8 +236,8 @@ function jumpToday() {
       <button
         type="button"
         class="vl-cal-nav shape-circle"
-        aria-label="下一年"
-        title="下一年"
+        :aria-label="messages.calendar.nextYear"
+        :title="messages.calendar.nextYear"
         @click="viewYear++"
       >
         <VlIcon name="chevron-right" :size="12" />
@@ -245,7 +248,7 @@ function jumpToday() {
     <Transition name="panel-fade" mode="out-in">
       <div v-if="pickerMode === 'months'" key="cal-months" class="vl-cal-months">
         <button
-          v-for="(label, idx) in MONTH_NAMES"
+          v-for="(label, idx) in monthNames"
           :key="label"
           type="button"
           class="vl-cal-month-btn shape-pill"
@@ -283,9 +286,9 @@ function jumpToday() {
     </Transition>
 
     <div v-if="showToday" class="vl-cal-foot">
-      <span class="vl-cal-sel-readout">{{ modelValue || '未选择日期' }}</span>
+      <span class="vl-cal-sel-readout">{{ modelValue || messages.calendar.unselected }}</span>
       <VlButton size="xs" variant="secondary" shape="morph" class="vl-cal-today-btn" @click="jumpToday">
-        今天
+        {{ messages.common.today }}
       </VlButton>
     </div>
   </div>

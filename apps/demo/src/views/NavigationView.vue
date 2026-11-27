@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   VlActivityBar,
   VlBottomDock,
@@ -23,72 +23,82 @@ import {
   type TabOption,
 } from '@valance-ui/vue'
 import { VlSteps, type StepItem } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
+
+const { t } = useDemoI18n()
 
 const actActive = ref('explorer')
 const actExpanded = ref(false)
-const actTopItems: ActivityBarItem[] = [
-  { id: 'explorer', icon: 'files', label: '资源管理器' },
-  { id: 'search', icon: 'search', label: '全文搜索', badge: 3 },
-  { id: 'plans', icon: 'calendar', label: '周期方案' },
-]
-const actCenterItems: ActivityBarItem[] = [
-  { id: 'lab', icon: 'flask', label: '曲线实验室' },
-  { id: 'clock', icon: 'clock', label: '时间轴' },
-]
-const actBottomItems: ActivityBarItem[] = [
-  { id: 'comment', icon: 'comment', label: '评论面板', tone: 'secondary', active: true },
-  { id: 'settings', icon: 'settings', label: '工作台设置' },
-]
+const actTopItems = computed<ActivityBarItem[]>(() => [
+  { id: 'explorer', icon: 'files', label: t.value.navigation.actTop.explorer },
+  { id: 'search', icon: 'search', label: t.value.navigation.actTop.search, badge: 3 },
+  { id: 'plans', icon: 'calendar', label: t.value.navigation.actTop.plans },
+])
+const actCenterItems = computed<ActivityBarItem[]>(() => [
+  { id: 'lab', icon: 'flask', label: t.value.navigation.actCenter.lab },
+  { id: 'clock', icon: 'clock', label: t.value.navigation.actCenter.clock },
+])
+const actBottomItems = computed<ActivityBarItem[]>(() => [
+  { id: 'comment', icon: 'comment', label: t.value.navigation.actBottom.comment, tone: 'secondary', active: true },
+  { id: 'settings', icon: 'settings', label: t.value.navigation.actBottom.settings },
+])
 
 const sideActive = ref('ch1-s2')
-const sideGroups: SideNavGroup[] = [
+const sideGroups = computed<SideNavGroup[]>(() => [
   {
     id: 'ch0',
-    label: '第0章 序幕',
+    label: t.value.navigation.sideGroups.ch0.label,
     badge: 'v2.1',
-    meta: '3幕',
+    meta: t.value.navigation.sideGroups.ch0.meta,
     defaultOpen: true,
     items: [
-      { id: 'ch0-s1', label: '幕1 放出', icon: 'doc', openDot: true, meta: '3.2k' },
-      { id: 'ch0-full', label: '第0章 全文', icon: 'book', tone: 'secondary', meta: '12k' },
+      { id: 'ch0-s1', label: t.value.navigation.sideGroups.ch0.s1, icon: 'doc', openDot: true, meta: '3.2k' },
+      { id: 'ch0-full', label: t.value.navigation.sideGroups.ch0.full, icon: 'book', tone: 'secondary', meta: '12k' },
     ],
   },
   {
     id: 'ch1',
-    label: '第1章 平原之上',
+    label: t.value.navigation.sideGroups.ch1.label,
     badge: 'v1.4',
-    meta: '2幕',
+    meta: t.value.navigation.sideGroups.ch1.meta,
     defaultOpen: true,
     items: [
-      { id: 'ch1-s1', label: '幕1 初遇', icon: 'doc', meta: '4.1k' },
-      { id: 'ch1-s2', label: '幕2 晚风与信号', icon: 'doc', openDot: true, meta: '5.6k' },
+      { id: 'ch1-s1', label: t.value.navigation.sideGroups.ch1.s1, icon: 'doc', meta: '4.1k' },
+      { id: 'ch1-s2', label: t.value.navigation.sideGroups.ch1.s2, icon: 'doc', openDot: true, meta: '5.6k' },
     ],
   },
-]
+])
 
 const dockCapsuleTab = ref('curve')
 const dockBarTab = ref('home')
 const railCapsuleTab = ref('curve')
 const railBarTab = ref('home')
-const capsuleItems: BottomDockItem[] = [
-  { id: 'curve', label: '曲线', icon: 'curve' },
-  { id: 'records', label: '记录', icon: 'clock', badge: 4 },
-  { id: 'calibration', label: '校准', icon: 'biotech' },
-]
-const railCapsuleItems: NavRailItem[] = capsuleItems
-const barItems: BottomDockItem[] = [
-  { id: 'home', label: '首页', icon: 'home' },
-  { id: 'explore', label: '探索', icon: 'compass' },
-  { id: 'archive', label: '归档', icon: 'archive' },
-  { id: 'user', label: '我的', icon: 'user' },
-]
-const railBarItems: NavRailItem[] = barItems
+const capsuleItems = computed<BottomDockItem[]>(() => [
+  { id: 'curve', label: t.value.navigation.dockItems.curve, icon: 'curve' },
+  { id: 'records', label: t.value.navigation.dockItems.records, icon: 'clock', badge: 4 },
+  { id: 'calibration', label: t.value.navigation.dockItems.calibration, icon: 'biotech' },
+])
+const railCapsuleItems = computed<NavRailItem[]>(() => capsuleItems.value)
+const barItems = computed<BottomDockItem[]>(() => [
+  { id: 'home', label: t.value.navigation.barItems.home, icon: 'home' },
+  { id: 'explore', label: t.value.navigation.barItems.explore, icon: 'compass' },
+  { id: 'archive', label: t.value.navigation.barItems.archive, icon: 'archive' },
+  { id: 'user', label: t.value.navigation.barItems.user, icon: 'user' },
+])
+const railBarItems = computed<NavRailItem[]>(() => barItems.value)
 
 const demoTabs = ref<TabBarItem[]>([
-  { id: 'curve', title: '浓度曲线', subtitle: 'PK', icon: 'curve', pinned: true },
+  { id: 'curve', title: t.value.navigation.initialTabs.curve, subtitle: 'PK', icon: 'curve', pinned: true },
   { id: 'ev', title: 'Estradiol Valerate', subtitle: 'HRT', icon: 'flask', tone: 'secondary' },
-  { id: 'plan', title: '常规 5 日周期', subtitle: 'PLAN', icon: 'calendar', tone: 'secondary' },
+  { id: 'plan', title: t.value.navigation.initialTabs.plan, subtitle: 'PLAN', icon: 'calendar', tone: 'secondary' },
 ])
+watch(t, (nextT) => {
+  demoTabs.value = demoTabs.value.map((tab) => {
+    if (tab.id === 'curve') return { ...tab, title: nextT.navigation.initialTabs.curve }
+    if (tab.id === 'plan') return { ...tab, title: nextT.navigation.initialTabs.plan }
+    return tab
+  })
+})
 const activeTabId = ref('curve')
 let tabSeq = 1
 
@@ -96,7 +106,7 @@ function addDemoTab() {
   const id = `doc-${tabSeq++}`
   demoTabs.value.push({
     id,
-    title: `新建文档 #${tabSeq - 1}`,
+    title: t.value.navigation.newTabTitle(tabSeq - 1),
     subtitle: 'DOC',
     icon: 'doc',
   })
@@ -104,35 +114,35 @@ function addDemoTab() {
 }
 
 function closeDemoTab(id: string) {
-  demoTabs.value = demoTabs.value.filter((t) => t.id !== id)
+  demoTabs.value = demoTabs.value.filter((item) => item.id !== id)
   if (activeTabId.value === id) {
     activeTabId.value = demoTabs.value[0]?.id ?? ''
   }
 }
 
 const subTab = ref('calibration')
-const subTabItems: TabOption<'calibration' | 'inspector' | 'logs'>[] = [
-  { value: 'calibration', label: '血检校准', icon: 'biotech', badge: 2 },
-  { value: 'inspector', label: '记录编辑', icon: 'sliders' },
-  { value: 'logs', label: '计算日志', icon: 'terminal' },
-]
+const subTabItems = computed<TabOption<'calibration' | 'inspector' | 'logs'>[]>(() => [
+  { value: 'calibration', label: t.value.navigation.subTabs.calibration, icon: 'biotech', badge: 2 },
+  { value: 'inspector', label: t.value.navigation.subTabs.inspector, icon: 'sliders' },
+  { value: 'logs', label: t.value.navigation.subTabs.logs, icon: 'terminal' },
+])
 
 const currentPage = ref(3)
 const currentStep = ref(1)
-const demoSteps: StepItem[] = [
-  { id: 1, title: '色彩引擎解析', description: '提取主色并计算冷暖对位副色' },
-  { id: 2, title: '几何形态装配', description: '应用直角 / 正圆 / 胶囊 / M3E 35 轮廓' },
-  { id: 3, title: '流体多端发布', description: '自动适配移动端比例与 Safe Area' },
-]
+const demoSteps = computed<StepItem[]>(() => [
+  { id: 1, title: t.value.navigation.steps.step1Title, description: t.value.navigation.steps.step1Desc },
+  { id: 2, title: t.value.navigation.steps.step2Title, description: t.value.navigation.steps.step2Desc },
+  { id: 3, title: t.value.navigation.steps.step3Title, description: t.value.navigation.steps.step3Desc },
+])
 </script>
 
 <template>
   <div class="demo-view">
     <!-- 1. Two Distinct Side Navigation Paradigms: Workbench ActivityBar vs Vertical Gesture NavRail -->
     <div class="two-col">
-      <VlCard title="侧面活动栏 · 工作台式（VlActivityBar）" subtitle="无手势纯点击，激活态由 0px 纯方变形为正圆" accent-side="left" accent-tone="primary">
+      <VlCard :title="t.navigation.actCardTitle" :subtitle="t.navigation.actCardSubtitle" accent-side="left" accent-tone="primary">
         <template #extra>
-          <VlSwitch v-model="actExpanded" size="sm" label="展开文本标签" />
+          <VlSwitch v-model="actExpanded" size="sm" :label="t.navigation.actExpandSwitch" />
         </template>
 
         <div class="rail-stage shape-rect">
@@ -144,13 +154,13 @@ const demoSteps: StepItem[] = [
             :expanded="actExpanded"
           />
           <div class="rail-preview">
-            <strong>当前工作台分区：{{ actActive }}</strong>
-            <p>面向工作台与 IDE 场景的经典活动栏：点击切换无拖拽干扰，激活态保留 0px 正方 ↔ 正圆变形动画与左侧强调竖条，次级面板使用青色通道区分。</p>
+            <strong>{{ t.navigation.actCurrentSection(actActive) }}</strong>
+            <p>{{ t.navigation.actCardBody }}</p>
           </div>
         </div>
       </VlCard>
 
-      <VlCard title="侧边导航树（VlSideNav）" subtitle="支持非线性 Grid 展开折叠、4px 侧边激活条与徽章" accent-side="left" accent-tone="secondary">
+      <VlCard :title="t.navigation.sideCardTitle" :subtitle="t.navigation.sideCardSubtitle" accent-side="left" accent-tone="secondary">
         <div class="sidenav-stage shape-rect">
           <VlSideNav
             :groups="sideGroups"
@@ -162,45 +172,45 @@ const demoSteps: StepItem[] = [
     </div>
 
     <!-- 1b. Vertical Gesture Navigation Rail (Floating Capsule vs Flush Fixed Bar) -->
-    <VlCard title="侧面手势导航栏 · 竖向版（VlNavRail）：浮动胶囊 vs 固定侧栏" subtitle="与工作台活动栏区分：支持上下拖拽切换、色块按压缩放与有上限弹性轻微越界" accent-side="left" accent-tone="secondary">
+    <VlCard :title="t.navigation.railCardTitle" :subtitle="t.navigation.railCardSubtitle" accent-side="left" accent-tone="secondary">
       <div class="two-col">
         <div class="vrail-frame shape-rect">
           <VlNavRail v-model="railCapsuleTab" :items="railCapsuleItems" variant="capsule" contained />
           <div class="rail-preview">
-            <strong>竖向浮动胶囊 (variant="capsule")</strong>
-            <p>底部浮动导航栏的竖向镜像形态：上下按压拖拽时色块放大并可弹性轻微越界（上限 12px），同时带动容器做 Liquid 风格纯色微位移。</p>
-            <VlBadge tone="primary">当前选中：{{ railCapsuleTab }}</VlBadge>
+            <strong>{{ t.navigation.railCapsuleTitle }}</strong>
+            <p>{{ t.navigation.railCapsuleDesc }}</p>
+            <VlBadge tone="primary">{{ t.navigation.selectedBadge(railCapsuleTab) }}</VlBadge>
           </div>
         </div>
 
         <div class="vrail-frame shape-rect">
           <VlNavRail v-model="railBarTab" :items="railBarItems" variant="bar" contained />
           <div class="rail-preview">
-            <strong>竖向固定侧栏 (variant="bar")</strong>
-            <p>贴边通高竖向导航栏：左侧 3px 指示条与底色块随手指上下滑动并支持按压缩放与限位微越界，适合平板端/宽屏主导航。</p>
-            <VlBadge tone="secondary">当前选中：{{ railBarTab }}</VlBadge>
+            <strong>{{ t.navigation.railBarTitle }}</strong>
+            <p>{{ t.navigation.railBarDesc }}</p>
+            <VlBadge tone="secondary">{{ t.navigation.selectedBadge(railBarTab) }}</VlBadge>
           </div>
         </div>
       </div>
     </VlCard>
 
     <!-- 2. Bottom Navigation Bars (Both Variants) -->
-    <VlCard title="底部导航栏（VlBottomDock）：悬浮固定胶囊 vs 通栏底栏" accent-side="top" accent-tone="primary">
+    <VlCard :title="t.navigation.dockCardTitle" accent-side="top" accent-tone="primary">
       <div class="two-col">
         <div class="dock-frame shape-rect">
           <div class="dock-frame-body">
-            <strong>悬浮纯胶囊模式 (variant="capsule")</strong>
-            <p>流式放大胶囊宽度与高度并内置随动滑块指示器；可独立使用或嵌套于 <code>VlDockSheet</code> 组成二合一浮动导航栏。</p>
-            <VlBadge tone="primary">当前选中：{{ dockCapsuleTab }}</VlBadge>
+            <strong>{{ t.navigation.dockCapsuleTitle }}</strong>
+            <p>{{ t.navigation.dockCapsuleDesc }}</p>
+            <VlBadge tone="primary">{{ t.navigation.selectedBadge(dockCapsuleTab) }}</VlBadge>
           </div>
           <VlBottomDock v-model="dockCapsuleTab" :items="capsuleItems" variant="capsule" contained />
         </div>
 
         <div class="dock-frame shape-rect">
           <div class="dock-frame-body">
-            <strong>通栏底部导航模式 (variant="bar")</strong>
-            <p>满宽贴底导航栏，顶部带有 3px scaleX 展开指示线，激活图标方圆变形。</p>
-            <VlBadge tone="secondary">当前选中：{{ dockBarTab }}</VlBadge>
+            <strong>{{ t.navigation.dockBarTitle }}</strong>
+            <p>{{ t.navigation.dockBarDesc }}</p>
+            <VlBadge tone="secondary">{{ t.navigation.selectedBadge(dockBarTab) }}</VlBadge>
           </div>
           <VlBottomDock v-model="dockBarTab" :items="barItems" variant="bar" contained />
         </div>
@@ -208,7 +218,7 @@ const demoSteps: StepItem[] = [
     </VlCard>
 
     <!-- 3. TabBar, Tabs, Breadcrumb, Pagination -->
-    <VlCard title="多标签栏（VlTabBar）、内容选项卡（VlTabs）、面包屑与分页" accent-side="left" accent-tone="secondary">
+    <VlCard :title="t.navigation.tabsCardTitle" accent-side="left" accent-tone="secondary">
       <div class="nav-stack">
         <div class="demo-box shape-rect">
           <VlTabBar
@@ -218,7 +228,7 @@ const demoSteps: StepItem[] = [
             @close="closeDemoTab"
           >
             <template #actions>
-              <VlButton size="xs" variant="primary" icon="plus" @click="addDemoTab">新增标签</VlButton>
+              <VlButton size="xs" variant="primary" icon="plus" @click="addDemoTab">{{ t.navigation.addTabBtn }}</VlButton>
             </template>
           </VlTabBar>
         </div>
@@ -235,8 +245,8 @@ const demoSteps: StepItem[] = [
           <VlBreadcrumb
             :items="[
               { label: 'ValanceUI', to: '/' },
-              { label: '导航体系', to: '/nav' },
-              { label: '面包屑与分页示例', active: true },
+              { label: t.navigation.breadcrumbRoot, to: '/nav' },
+              { label: t.navigation.breadcrumbLeaf, active: true },
             ]"
           >
             <template #trailing>
@@ -252,12 +262,12 @@ const demoSteps: StepItem[] = [
     </VlCard>
 
     <!-- 4. TitleBar & StatusBar -->
-    <VlCard title="顶栏（VlTitleBar）与状态栏（VlStatusBar）" surface="surface">
+    <VlCard :title="t.navigation.titleStatusCardTitle" surface="surface">
       <div class="demo-box shape-rect">
         <VlTitleBar
           brand-name="VALENCE"
           brand-tag="DEMO"
-          center-text="第1章 / 幕2 晚风与信号"
+          :center-text="t.navigation.titleBarCenter"
           center-active
           left-active
         />
@@ -268,7 +278,7 @@ const demoSteps: StepItem[] = [
             <span>/components/navigation</span>
           </template>
           <template #right>
-            <VlBadge tone="primary" size="xs">进度 68%</VlBadge>
+            <VlBadge tone="primary" size="xs">{{ t.navigation.progressBadge }}</VlBadge>
             <span>100% Flat</span>
           </template>
         </VlStatusBar>
@@ -276,11 +286,11 @@ const demoSteps: StepItem[] = [
     </VlCard>
 
     <!-- 5. Steps Workflow Progress -->
-    <VlCard title="步骤引导条（VlSteps）：水平与垂直流程" accent-side="left" accent-tone="primary">
+    <VlCard :title="t.navigation.stepsCardTitle" accent-side="left" accent-tone="primary">
       <template #extra>
         <div style="display: flex; gap: 6px">
-          <VlButton size="xs" variant="outline" :disabled="currentStep <= 0" @click="currentStep--">上一步</VlButton>
-          <VlButton size="xs" variant="primary" :disabled="currentStep >= demoSteps.length - 1" @click="currentStep++">下一步</VlButton>
+          <VlButton size="xs" variant="outline" :disabled="currentStep <= 0" @click="currentStep--">{{ t.navigation.prevStep }}</VlButton>
+          <VlButton size="xs" variant="primary" :disabled="currentStep >= demoSteps.length - 1" @click="currentStep++">{{ t.navigation.nextStep }}</VlButton>
         </div>
       </template>
 

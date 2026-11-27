@@ -42,6 +42,9 @@ import {
   hexToHsl,
   morphM3ShapePath,
   relativeLuminance,
+  useLocale,
+  detectBrowserLocale,
+  getLocalizedShapeLabel,
   useThemeMode,
   useToast,
   registerBackHandler,
@@ -75,6 +78,7 @@ describe('@valance-ui/vue core components', () => {
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.removeAttribute('data-accent')
     clearBackHandlers()
+    useLocale().setLocale('zh-CN')
   })
 
   it('renders VlButton variants and shapes', () => {
@@ -957,5 +961,38 @@ describe('@valance-ui/vue core components', () => {
     const pagesAfterSecond = pager.findAll('.vl-snap-page')
     expect(pagesAfterSecond.some((p) => p.classes().includes('is-fade-kf-enter-a'))).toBe(true)
     expect(pagesAfterSecond.some((p) => p.classes().includes('is-fade-kf-leave-a'))).toBe(true)
+  })
+
+  it('switches component library strings reactively across zh-CN, zh-TW, en, and ja', async () => {
+    const { setLocale, locale } = useLocale()
+    const sheet = mount(VlSheet, {
+      props: { open: true, title: 'Locale Sheet', contained: true, expandable: true, detent: 'half' },
+      slots: { default: '<div>Body</div>' },
+    })
+    const cal = mount(VlCalendar, { props: { modelValue: '2026-11-27' } })
+
+    expect(sheet.find('.vl-sheet-detent-btn').text()).toBe('全高')
+    expect(cal.find('.vl-cal-today-btn').text()).toBe('今天')
+
+    setLocale('en')
+    await sheet.vm.$nextTick()
+    expect(locale.value).toBe('en')
+    expect(sheet.find('.vl-sheet-detent-btn').text()).toBe('Full')
+    expect(cal.find('.vl-cal-today-btn').text()).toBe('Today')
+    expect(getLocalizedShapeLabel('heart', 'en')).toBe('Heart')
+
+    setLocale('ja')
+    await sheet.vm.$nextTick()
+    expect(locale.value).toBe('ja')
+    expect(sheet.find('.vl-sheet-detent-btn').text()).toBe('全高')
+    expect(cal.find('.vl-cal-today-btn').text()).toBe('今日')
+    expect(getLocalizedShapeLabel('heart', 'ja')).toBe('ハート')
+
+    setLocale('zh-TW')
+    await sheet.vm.$nextTick()
+    expect(cal.find('.vl-cal-title').text()).toContain('2026年 11月')
+    expect(getLocalizedShapeLabel('diamond', 'zh-TW')).toBe('菱形')
+
+    expect(typeof detectBrowserLocale()).toBe('string')
   })
 })

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -42,7 +45,7 @@ function go(p: number) {
 </script>
 
 <template>
-  <nav class="vl-pagination" aria-label="分页导航">
+  <nav class="vl-pagination" :aria-label="messages.nav.paginationAria">
     <button
       type="button"
       class="vl-page-nav shape-pill"
@@ -50,7 +53,7 @@ function go(p: number) {
       @click="go(page - 1)"
     >
       <VlIcon name="chevron-left" :size="13" />
-      <span>上一页</span>
+      <span>{{ messages.nav.prevPage }}</span>
     </button>
 
     <div class="vl-page-nums">
@@ -75,7 +78,7 @@ function go(p: number) {
       :disabled="page >= totalPages"
       @click="go(page + 1)"
     >
-      <span>下一页</span>
+      <span>{{ messages.nav.nextPage }}</span>
       <VlIcon name="chevron-right" :size="13" />
     </button>
   </nav>

@@ -1,10 +1,14 @@
 <script setup lang="ts" generic="T extends string = string">
+import { useLocale } from '../../composables/useLocale'
+
 export interface RadioOption<V extends string = string> {
   value: V
   label: string
   description?: string
   disabled?: boolean
 }
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -21,7 +25,6 @@ const props = withDefaults(
     variant: 'circle',
     tone: 'primary',
     disabled: false,
-    ariaLabel: '单选组',
   },
 )
 
@@ -40,7 +43,7 @@ function select(opt: RadioOption<T>) {
     class="vl-radio-group"
     :class="[`dir-${direction}`, `v-${variant}`]"
     role="radiogroup"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.radioGroup.ariaLabel"
   >
     <button
       v-for="opt in options"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   VlBadge,
   VlButton,
@@ -8,6 +8,9 @@ import {
   useWidthTransition,
   type SegmentOption,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
+
+const { t } = useDemoI18n()
 
 const raceActive = ref(false)
 const morphCircleActive = ref(false)
@@ -15,11 +18,11 @@ const morphPillActive = ref(false)
 
 const widthPreset = ref<'narrow' | 'standard' | 'wide'>('standard')
 const widthMap = { narrow: 420, standard: 620, wide: 820 }
-const widthOptions: SegmentOption<'narrow' | 'standard' | 'wide'>[] = [
-  { value: 'narrow', label: '窄版心 (420px)' },
-  { value: 'standard', label: '标准版心 (620px)' },
-  { value: 'wide', label: '宽版心 (820px)' },
-]
+const widthOptions = computed<SegmentOption<'narrow' | 'standard' | 'wide'>[]>(() => [
+  { value: 'narrow', label: t.value.motion.measureOptions.narrow },
+  { value: 'standard', label: t.value.motion.measureOptions.standard },
+  { value: 'wide', label: t.value.motion.measureOptions.wide },
+])
 
 const columnHostRef = ref<HTMLElement | null>(null)
 const { isWidthMorphing, runWidthTransition } = useWidthTransition()
@@ -40,10 +43,10 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
 <template>
   <div class="demo-view">
     <!-- Easing Curve Racer -->
-    <VlCard title="非线性缓动曲线赛跑实验室" subtitle="对比 Valance 的三种核心时间函数" accent-side="left" accent-tone="primary">
+    <VlCard :title="t.motion.raceCardTitle" :subtitle="t.motion.raceCardSubtitle" accent-side="left" accent-tone="primary">
       <template #extra>
         <VlButton variant="primary" icon="play" @click="raceActive = !raceActive">
-          {{ raceActive ? '复位起点' : '触发齐发' }}
+          {{ raceActive ? t.motion.raceReset : t.motion.raceStart }}
         </VlButton>
       </template>
 
@@ -52,7 +55,7 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
           <div class="racer-meta">
             <strong>--ease-decel</strong>
             <code>cubic-bezier(0.04, 0.94, 0.12, 1)</code>
-            <VlBadge tone="primary" size="xs">高初速减速</VlBadge>
+            <VlBadge tone="primary" size="xs">{{ t.motion.decelBadge }}</VlBadge>
           </div>
           <div class="racer-track shape-rect">
             <span class="racer-puck shape-pill nonlinear" :class="{ go: raceActive }" />
@@ -63,7 +66,7 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
           <div class="racer-meta">
             <strong>--ease-snappy</strong>
             <code>cubic-bezier(0.08, 0.96, 0.14, 1)</code>
-            <VlBadge tone="secondary" size="xs">瞬发定位</VlBadge>
+            <VlBadge tone="secondary" size="xs">{{ t.motion.snappyBadge }}</VlBadge>
           </div>
           <div class="racer-track shape-rect">
             <span class="racer-puck shape-pill expressive" :class="{ go: raceActive }" />
@@ -74,7 +77,7 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
           <div class="racer-meta">
             <strong>--ease-accel-decel</strong>
             <code>cubic-bezier(0.3, 0.08, 0.08, 1)</code>
-            <VlBadge tone="neutral" size="xs">高力度先加后减</VlBadge>
+            <VlBadge tone="neutral" size="xs">{{ t.motion.emphasizedBadge }}</VlBadge>
           </div>
           <div class="racer-track shape-rect">
             <span class="racer-puck shape-pill standard" :class="{ go: raceActive }" />
@@ -84,7 +87,7 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
     </VlCard>
 
     <!-- Geometric Morph Playground -->
-    <VlCard title="几何形变演练场（Square ↔ Circle & Square ↔ Pill）" accent-side="left" accent-tone="secondary">
+    <VlCard :title="t.motion.morphCardTitle" accent-side="left" accent-tone="secondary">
       <div class="morph-grid">
         <div class="morph-demo-box shape-rect">
           <button
@@ -96,8 +99,8 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
             {{ morphCircleActive ? '26px' : '0px' }}
           </button>
           <div>
-            <strong>方圆变形 · 活动栏 / 图标钮</strong>
-            <p class="morph-desc">在 <code>0px</code>（纯方）与精确半高 <code>26px</code>（纯圆）之间纯 px 连续插值，点击或悬停触发。</p>
+            <strong>{{ t.motion.squareCircleTitle }}</strong>
+            <p class="morph-desc">{{ t.motion.squareCircleDesc }}</p>
           </div>
         </div>
 
@@ -111,15 +114,15 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
             {{ morphPillActive ? '19px' : '0px' }}
           </button>
           <div>
-            <strong>方胶变形 · 主按钮 / 选项条</strong>
-            <p class="morph-desc">在 <code>0px</code>（直角）与精确短边半高 <code>19px</code>（<code>calc(H / 2)</code>）之间 M3E 弹簧过渡。</p>
+            <strong>{{ t.motion.squarePillTitle }}</strong>
+            <p class="morph-desc">{{ t.motion.squarePillDesc }}</p>
           </div>
         </div>
       </div>
     </VlCard>
 
     <!-- Reader Column Width Snapshot Morph -->
-    <VlCard title="KDE / Win11 风格版心宽度快照剪裁过渡" subtitle="避免实时 reflow 文字抖动，保留阅读锚点行位置" accent-side="top" accent-tone="primary">
+    <VlCard :title="t.motion.measureCardTitle" :subtitle="t.motion.measureCardSubtitle" accent-side="top" accent-tone="primary">
       <template #extra>
         <VlSegmentedControl
           :model-value="widthPreset"
@@ -132,24 +135,20 @@ function switchColumnWidth(next: 'narrow' | 'standard' | 'wide') {
 
       <div ref="columnHostRef" class="width-host" :class="{ 'vt-width-target': isWidthMorphing }">
         <div class="width-sample shape-rect" :style="{ maxWidth: `${widthMap[widthPreset]}px` }">
-          <p>
-            Valance UI 的阅读画布切换版心宽度时，并不会直接让 <code>max-width</code> 在 340ms 内每一帧重排段落折行（这会导致严重文字抖动），而是借助 View Transitions API 对旧版心与新版心同时做水平 <code>clip-path: inset(...)</code> 剪裁交叉淡入淡出。
-          </p>
-          <p>
-            同时算法会锚定当前视口顶端正在阅读的那一行段落，在新排版提交后瞬间对齐 scrollTop，保证视线焦点零丢失。
-          </p>
+          <p>{{ t.motion.measureBody1 }}</p>
+          <p>{{ t.motion.measureBody2 }}</p>
         </div>
       </div>
     </VlCard>
 
     <!-- Typography Scale -->
-    <VlCard title="桌面端 / 平板 / 手机自适应字号阶梯" surface="surface">
+    <VlCard :title="t.motion.typoCardTitle" surface="surface">
       <div class="typo-scale">
-        <div class="typo-row"><code>--ui-font-xs</code><span style="font-size: var(--ui-font-xs)">10px 徽章、时间戳与辅助角标</span></div>
-        <div class="typo-row"><code>--ui-font-sm</code><span style="font-size: var(--ui-font-sm)">11px 次级元信息与表单标签</span></div>
-        <div class="typo-row"><code>--ui-font-md</code><span style="font-size: var(--ui-font-md)">12px 按钮、输入框与面板标题</span></div>
-        <div class="typo-row"><code>--ui-font-base</code><span style="font-size: var(--ui-font-base)">13px 主列表与导航项</span></div>
-        <div class="typo-row"><code>--ui-font-lg</code><span style="font-size: var(--ui-font-lg)">14px Sheet 与弹窗标题</span></div>
+        <div class="typo-row"><code>--ui-font-xs</code><span style="font-size: var(--ui-font-xs)">{{ t.motion.typoScale.xs }}</span></div>
+        <div class="typo-row"><code>--ui-font-sm</code><span style="font-size: var(--ui-font-sm)">{{ t.motion.typoScale.sm }}</span></div>
+        <div class="typo-row"><code>--ui-font-md</code><span style="font-size: var(--ui-font-md)">{{ t.motion.typoScale.md }}</span></div>
+        <div class="typo-row"><code>--ui-font-base</code><span style="font-size: var(--ui-font-base)">{{ t.motion.typoScale.base }}</span></div>
+        <div class="typo-row"><code>--ui-font-lg</code><span style="font-size: var(--ui-font-lg)">{{ t.motion.typoScale.lg }}</span></div>
       </div>
     </VlCard>
   </div>

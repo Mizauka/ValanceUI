@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   VlButton,
   VlCalendar,
@@ -20,13 +20,15 @@ import {
   type RadioOption,
   type SelectOption,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
 
+const { t } = useDemoI18n()
 const toast = useToast()
 
 const name = ref('Valence Workbench')
 const search = ref('')
 const errorInput = ref('')
-const bio = ref('在严格直角 / 正圆 / 胶囊 / M3E 35 种几何图形与零阴影下，保持高密度交互质感。')
+const bio = ref(t.value.forms.defaultBio)
 const routeMethod = ref('im')
 const modelMethod = ref('two_compartment')
 const pickedDate = ref('2026-11-26')
@@ -34,7 +36,22 @@ const pickedTime = ref('14:35')
 const inlineClock24 = ref('20:45')
 const inlineClock12 = ref('09:15')
 const pickedDateTime = ref('2026-11-26T20:45')
-const formTags = ref(['自绘下拉框', '表盘时钟', 'Flat Geometric'])
+const formTags = ref([...t.value.forms.defaultTags])
+
+watch(
+  () => t.value.forms.defaultBio,
+  (next, prev) => {
+    if (bio.value === prev) bio.value = next
+  },
+)
+watch(
+  () => t.value.forms.defaultTags,
+  (next, prev) => {
+    if (formTags.value.length === prev.length && formTags.value.every((v, i) => v === prev[i])) {
+      formTags.value = [...next]
+    }
+  },
+)
 
 const switchA = ref(true)
 const switchB = ref(false)
@@ -45,39 +62,39 @@ const radioVal = ref<'ou' | 'ratio'>('ou')
 const weightSlider = ref(62)
 const ratioSlider = ref(40)
 
-const routeOptions: SelectOption[] = [
-  { value: 'oral', label: '口服 · Oral', description: 'Bateman 一室胃肠道吸收模型', icon: 'pill', badge: '常规' },
-  { value: 'sublingual', label: '舌下 · Sublingual', description: '黏膜快速首过绕过吸收', icon: 'sparkles', badge: '快效' },
-  { value: 'im', label: '肌内注射 · IM', description: '双相缓释长周期稳态曲线', icon: 'curve', badge: '推荐' },
-  { value: 'gel', label: '透皮凝胶 · Gel', description: '平滑皮肤储库释放曲线', icon: 'flask' },
-]
+const routeOptions = computed<SelectOption[]>(() => [
+  { value: 'oral', label: t.value.forms.routes.oral.label, description: t.value.forms.routes.oral.description, icon: 'pill', badge: t.value.forms.routes.oral.badge },
+  { value: 'sublingual', label: t.value.forms.routes.sublingual.label, description: t.value.forms.routes.sublingual.description, icon: 'sparkles', badge: t.value.forms.routes.sublingual.badge },
+  { value: 'im', label: t.value.forms.routes.im.label, description: t.value.forms.routes.im.description, icon: 'curve', badge: t.value.forms.routes.im.badge },
+  { value: 'gel', label: t.value.forms.routes.gel.label, description: t.value.forms.routes.gel.description, icon: 'flask' },
+])
 
-const modelOptions: SelectOption[] = [
-  { value: 'one_compartment', label: '一室模型 (Bateman)', badge: '1C' },
-  { value: 'two_compartment', label: '二室模型 (精确特征根)', badge: '2C' },
-  { value: 'three_compartment', label: '三室深层储库模型', badge: '3C' },
-  { value: 'ou_kalman', label: 'OU-卡尔曼混合平滑', badge: 'ML' },
-]
+const modelOptions = computed<SelectOption[]>(() => [
+  { value: 'one_compartment', label: t.value.forms.models.one_compartment.label, badge: '1C' },
+  { value: 'two_compartment', label: t.value.forms.models.two_compartment.label, badge: '2C' },
+  { value: 'three_compartment', label: t.value.forms.models.three_compartment.label, badge: '3C' },
+  { value: 'ou_kalman', label: t.value.forms.models.ou_kalman.label, badge: 'ML' },
+])
 
-const radioOptions: RadioOption<'ou' | 'ratio'>[] = [
+const radioOptions = computed<RadioOption<'ou' | 'ratio'>[]>(() => [
   {
     value: 'ou',
-    label: 'OU-卡尔曼平滑模型',
-    description: '基于 Ornstein-Uhlenbeck 随机过程的连续置信区间估计',
+    label: t.value.forms.radios.ou.label,
+    description: t.value.forms.radios.ou.description,
   },
   {
     value: 'ratio',
-    label: '分段比率线性插值',
-    description: '适用于少量离散实测值的快速校准',
+    label: t.value.forms.radios.linear.label,
+    description: t.value.forms.radios.linear.description,
   },
-]
+])
 
 function submitForm() {
   if (!name.value.trim()) {
-    toast.error('请先填写名称')
+    toast.error(t.value.forms.toasts.emptyName)
     return
   }
-  toast.success(`已保存配置：${name.value}（${pickedDate.value} ${pickedTime.value}）`)
+  toast.success(t.value.forms.toasts.submitted(name.value, pickedDate.value, pickedTime.value))
 }
 </script>
 
@@ -85,54 +102,54 @@ function submitForm() {
   <div class="demo-view">
     <div class="two-col">
       <!-- Self-Drawn Text Inputs & Custom Select -->
-      <VlCard title="输入框与自绘选择器（无原生弹窗）" subtitle="100% 自绘扁平弹出层 · 支持键盘上下选择、内置搜索、描述与图标" accent-side="left" accent-tone="primary">
+      <VlCard :title="t.forms.card1Title" :subtitle="t.forms.card1Subtitle" accent-side="left" accent-tone="primary">
         <div class="form-stack">
           <VlInput
             v-model="name"
-            label="直角标准输入框"
-            placeholder="请输入项目名称…"
+            :label="t.forms.rectInputLabel"
+            :placeholder="t.forms.rectInputPlaceholder"
             clearable
-            hint="聚焦时高亮 2px 主色调内描边，保持零阴影。"
+            :hint="t.forms.rectInputHint"
           />
 
           <VlInput
             v-model="search"
             shape="pill"
             prefix-icon="search"
-            label="胶囊搜索框（shape='pill'）"
-            placeholder="输入正则表达式或关键词…"
+            :label="t.forms.pillSearchLabel"
+            :placeholder="t.forms.pillSearchPlaceholder"
             clearable
           />
 
           <VlSelect
             v-model="routeMethod"
-            label="全自绘 Select 下拉（支持图标与副标题）"
+            :label="t.forms.selectRouteLabel"
             :options="routeOptions"
           />
 
           <VlSelect
             v-model="modelMethod"
             searchable
-            label="可搜索自绘 Select（统一位置动效 + 顶部胶囊搜索框）"
+            :label="t.forms.searchableSelectLabel"
             :options="modelOptions"
           />
 
           <VlTagInput
             v-model="formTags"
-            label="动态标签输入框（VlTagInput）"
-            hint="输入后按 Enter 或英文逗号添加，Backspace 删除最后一项"
+            :label="t.forms.tagInputLabel"
+            :hint="t.forms.tagInputHint"
           />
 
           <VlInput
             v-model="errorInput"
-            label="错误校验状态"
-            placeholder="输入空值将显示错误态"
-            :error="errorInput.trim() ? '' : '此字段不能为空（演示错误描边）'"
+            :label="t.forms.errorInputLabel"
+            :placeholder="t.forms.errorInputPlaceholder"
+            :error="errorInput.trim() ? '' : t.forms.errorInputMessage"
           />
 
           <VlTextarea
             v-model="bio"
-            label="多行备注文本"
+            :label="t.forms.textareaLabel"
             :maxlength="120"
             show-count
             :rows="3"
@@ -141,25 +158,25 @@ function submitForm() {
       </VlCard>
 
       <!-- Switch / Checkbox / Radio / File Dropzone -->
-      <VlCard title="开关（支持拖拽手势）、选择组、滑杆与文件拖拽区" accent-side="left" accent-tone="secondary">
+      <VlCard :title="t.forms.card2Title" accent-side="left" accent-tone="secondary">
         <div class="form-stack">
           <VlSwitch
             v-model="switchA"
-            label="启用桌面端多标签栏（支持点击或横向滑动切换）"
-            description="在工作台顶部展示已打开文档标签页 · 可直接按住滑块左右拖动"
+            :label="t.forms.switch1Label"
+            :description="t.forms.switch1Desc"
           />
           <VlSwitch
             v-model="switchB"
             tone="secondary"
-            label="启用 PWA 离线推送提醒"
-            description="到达周期时间后触发系统通知"
+            :label="t.forms.switch2Label"
+            :description="t.forms.switch2Desc"
           />
 
           <div class="divider-line" />
 
-          <VlCheckbox v-model="checkA" label="忽略正则大小写 (i)" />
-          <VlCheckbox v-model="checkB" tone="secondary" label="打开新篇章时自动折叠旧章节" />
-          <VlCheckbox v-model="checkIndet" indeterminate label="半选状态（Indeterminate）" />
+          <VlCheckbox v-model="checkA" :label="t.forms.checkRegex" />
+          <VlCheckbox v-model="checkB" tone="secondary" :label="t.forms.checkAutoCollapse" />
+          <VlCheckbox v-model="checkIndet" indeterminate :label="t.forms.checkIndet" />
 
           <div class="divider-line" />
 
@@ -169,17 +186,17 @@ function submitForm() {
             :options="radioOptions"
           />
 
-          <VlSlider v-model="weightSlider" :min="35" :max="120" label="生理体重参数" unit=" kg" />
-          <VlSlider v-model="ratioSlider" :min="20" :max="65" tone="secondary" label="双栏分屏比例" unit="%" />
+          <VlSlider v-model="weightSlider" :min="35" :max="120" :label="t.forms.weightLabel" unit=" kg" />
+          <VlSlider v-model="ratioSlider" :min="20" :max="65" tone="secondary" :label="t.forms.splitLabel" unit="%" />
 
           <VlFileDropzone
-            title="拖拽或点击导入 JSON / Markdown 备份"
-            subtitle="支持本地选择展示文件名、容量与删除管理"
-            @select="(files) => toast.info(`已选中 ${files.length} 个文件`)"
+            :title="t.forms.dropTitle"
+            :subtitle="t.forms.dropSubtitle"
+            @select="(files) => toast.info(t.forms.toasts.filesSelected(files.length))"
           />
 
           <VlButton variant="primary" icon="check" block @click="submitForm">
-            提交表单示例
+            {{ t.forms.submitBtn }}
           </VlButton>
         </div>
       </VlCard>
@@ -187,21 +204,21 @@ function submitForm() {
 
     <!-- Custom Drawn Calendar + Analog Clock Time Picker Showcase -->
     <VlCard
-      title="自绘日历、拨动式时钟表盘与日期时间组合选择器"
-      subtitle="Material 风格自绘 SVG 表盘（支持指针拖拽拨动小时/分钟、24H 内外双圈与 12H AM/PM）+ 扁平日历网格"
+      :title="t.forms.card3Title"
+      :subtitle="t.forms.card3Subtitle"
       accent-side="top"
       accent-tone="primary"
     >
       <div class="pickers-top-bar">
-        <VlDatePicker v-model="pickedDate" label="弹出式自绘日期框（VlDatePicker）" clearable />
-        <VlTimePicker v-model="pickedTime" label="弹出式表盘时间框（VlTimePicker）" />
-        <VlDateTimePicker v-model="pickedDateTime" label="日期时间一体框（VlDateTimePicker）" />
+        <VlDatePicker v-model="pickedDate" :label="t.forms.datePickerLabel" clearable />
+        <VlTimePicker v-model="pickedTime" :label="t.forms.timePickerLabel" />
+        <VlDateTimePicker v-model="pickedDateTime" :label="t.forms.dateTimePickerLabel" />
       </div>
 
       <div class="inline-pickers-grid">
         <div class="picker-panel shape-rect">
           <div class="picker-panel-head">
-            <strong>内联自绘日历（VlCalendar）</strong>
+            <strong>{{ t.forms.inlineCalendarTitle }}</strong>
             <code>{{ pickedDate }}</code>
           </div>
           <VlCalendar v-model="pickedDate" />
@@ -209,7 +226,7 @@ function submitForm() {
 
         <div class="picker-panel shape-rect">
           <div class="picker-panel-head">
-            <strong>24H 双圈拨动表盘（VlTimePicker inline）</strong>
+            <strong>{{ t.forms.dial24Title }}</strong>
             <code>{{ inlineClock24 }}</code>
           </div>
           <VlTimePicker v-model="inlineClock24" inline format="24h" tone="primary" />
@@ -217,7 +234,7 @@ function submitForm() {
 
         <div class="picker-panel shape-rect">
           <div class="picker-panel-head">
-            <strong>12H AM/PM 表盘（副色调）</strong>
+            <strong>{{ t.forms.dial12Title }}</strong>
             <code>{{ inlineClock12 }}</code>
           </div>
           <VlTimePicker v-model="inlineClock12" inline format="12h" tone="secondary" />

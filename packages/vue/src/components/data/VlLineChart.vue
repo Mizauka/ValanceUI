@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface ChartPoint {
   x: number
@@ -50,7 +53,6 @@ const props = withDefaults(
     height: 270,
     showScrubber: true,
     showLegend: true,
-    emptyText: '暂无可视化时序数据',
   },
 )
 
@@ -595,7 +597,7 @@ onBeforeUnmount(() => {
         </g>
       </svg>
 
-      <div v-else class="vl-chart-empty">{{ emptyText }}</div>
+      <div v-else class="vl-chart-empty">{{ emptyText ?? messages.lineChart.emptyText }}</div>
     </div>
 
     <!-- Bottom Overview Scrubber -->
@@ -623,7 +625,7 @@ onBeforeUnmount(() => {
         <span>{{ s.name }}</span>
         <span v-if="s.unit" class="vl-legend-unit">{{ s.unit }}</span>
       </button>
-      <span class="vl-legend-tip">滚轮缩放 · 拖拽平移 · 双击复原</span>
+      <span class="vl-legend-tip">{{ messages.lineChart.legendTip }}</span>
     </div>
   </section>
 </template>

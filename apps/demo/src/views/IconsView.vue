@@ -8,9 +8,12 @@ import {
   VlInput,
   VlSlider,
   VlTag,
+  getLocalizedIconGroupLabel,
   useToast,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
 
+const { t } = useDemoI18n()
 const toast = useToast()
 const query = ref('')
 const activeCategory = ref<string>('all')
@@ -36,7 +39,7 @@ async function copyIcon(name: string) {
   const snippet = `<VlIcon name="${name}" :size="${iconSize.value}" />`
   try {
     await navigator.clipboard?.writeText(snippet)
-    toast.success(`已复制 ${snippet}`)
+    toast.success(t.value.icons.copiedToast(snippet))
   } catch {
     toast.info(snippet)
   }
@@ -45,20 +48,20 @@ async function copyIcon(name: string) {
 
 <template>
   <div class="demo-view">
-    <VlCard title="几何 SVG 图标系统（VlIcon）" subtitle="统一 16×16 网格、1.35~1.6px 等宽描边，支持自定义 registerIcons 扩展" accent-side="left" accent-tone="secondary">
+    <VlCard :title="t.icons.cardTitle" :subtitle="t.icons.cardSubtitle" accent-side="left" accent-tone="secondary">
       <div class="icon-controls">
         <VlInput
           v-model="query"
           shape="pill"
           prefix-icon="search"
           clearable
-          placeholder="搜索图标名称，如 curve、dock、panel、arrow…"
+          :placeholder="t.icons.searchPlaceholder"
           style="flex: 1"
         />
         <div style="width: 200px">
-          <VlSlider v-model="iconSize" :min="12" :max="36" :step="2" label="预览尺寸" unit="px" />
+          <VlSlider v-model="iconSize" :min="12" :max="36" :step="2" :label="t.icons.sizeLabel" unit="px" />
         </div>
-        <VlBadge tone="primary" size="md">{{ totalVisible }} 个图标</VlBadge>
+        <VlBadge tone="primary" size="md">{{ t.icons.countBadge(totalVisible) }}</VlBadge>
       </div>
 
       <div class="cat-chips">
@@ -68,7 +71,7 @@ async function copyIcon(name: string) {
           tone="primary"
           @click="activeCategory = 'all'"
         >
-          全部分类
+          {{ t.icons.allCategories }}
         </VlTag>
         <VlTag
           v-for="cat in ICON_CATEGORIES"
@@ -78,14 +81,14 @@ async function copyIcon(name: string) {
           tone="secondary"
           @click="activeCategory = cat.id"
         >
-          {{ cat.label }}
+          {{ getLocalizedIconGroupLabel(cat.id) }}
         </VlTag>
       </div>
     </VlCard>
 
     <section v-for="cat in filteredCategories" :key="cat.id" class="icon-section">
       <div class="cat-head">
-        <strong>{{ cat.label }}</strong>
+        <strong>{{ getLocalizedIconGroupLabel(cat.id) }}</strong>
         <VlBadge tone="neutral" size="xs">{{ cat.icons.length }}</VlBadge>
       </div>
 
@@ -95,7 +98,7 @@ async function copyIcon(name: string) {
           :key="name"
           type="button"
           class="icon-tile shape-rect"
-          :title="`点击复制 ${name}`"
+          :title="t.icons.copyTitle(name)"
           @click="copyIcon(name)"
         >
           <span class="icon-box">

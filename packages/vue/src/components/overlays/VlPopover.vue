@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -92,7 +95,7 @@ onBeforeUnmount(() => {
             v-if="closable"
             type="button"
             class="vl-popover-close shape-circle"
-            aria-label="关闭"
+            :aria-label="messages.common.close"
             @click="open = false"
           >
             <VlIcon name="close" :size="10" />

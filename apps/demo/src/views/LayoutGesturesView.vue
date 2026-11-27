@@ -24,7 +24,9 @@ import {
   type SegmentOption,
   type SideNavGroup,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
 
+const { t } = useDemoI18n()
 const toast = useToast()
 const isRefreshing = ref(false)
 const refreshCount = ref(0)
@@ -35,7 +37,7 @@ function handlePullRefresh() {
   setTimeout(() => {
     refreshCount.value++
     isRefreshing.value = false
-    toast.success(`M3E 下拉同步完成（第 ${refreshCount.value} 次）`)
+    toast.success(t.value.gestures.pullToast(refreshCount.value))
   }, 1100)
 }
 
@@ -47,44 +49,44 @@ const drawerDragState = ref({ progress: 0, rightProgress: 0, isDragging: false, 
 const drawerAct = ref('files')
 const drawerDoc = ref('s1')
 const rightInspectorMode = ref('layout')
-const rightInspectorOpts: SegmentOption<'layout' | 'tokens'>[] = [
-  { value: 'layout', label: '几何规格' },
-  { value: 'tokens', label: '物理参数' },
-]
+const rightInspectorOpts = computed<SegmentOption<'layout' | 'tokens'>[]>(() => [
+  { value: 'layout', label: t.value.gestures.rightInspectorOpts.layout },
+  { value: 'tokens', label: t.value.gestures.rightInspectorOpts.tokens },
+])
 
-const drawerActItems: ActivityBarItem[] = [
-  { id: 'files', icon: 'files', label: '目录' },
-  { id: 'search', icon: 'search', label: '搜索' },
-]
-const drawerActBottom: ActivityBarItem[] = [
-  { id: 'settings', icon: 'settings', label: '设置' },
-]
-const drawerGroups: SideNavGroup[] = [
+const drawerActItems = computed<ActivityBarItem[]>(() => [
+  { id: 'files', icon: 'files', label: t.value.gestures.drawerActItems.files },
+  { id: 'search', icon: 'search', label: t.value.gestures.drawerActItems.search },
+])
+const drawerActBottom = computed<ActivityBarItem[]>(() => [
+  { id: 'settings', icon: 'settings', label: t.value.gestures.drawerActBottom.settings },
+])
+const drawerGroups = computed<SideNavGroup[]>(() => [
   {
     id: 'ch0',
-    label: '第0章 序幕',
+    label: t.value.gestures.drawerGroup.label,
     badge: 'v2.0',
     defaultOpen: true,
     items: [
-      { id: 's1', label: '幕1 放出', icon: 'doc', openDot: true },
-      { id: 's2', label: '幕2 荒原信号', icon: 'doc' },
-      { id: 'full', label: '本章全文', icon: 'book', tone: 'secondary' },
+      { id: 's1', label: t.value.gestures.drawerGroup.s1, icon: 'doc', openDot: true },
+      { id: 's2', label: t.value.gestures.drawerGroup.s2, icon: 'doc' },
+      { id: 'full', label: t.value.gestures.drawerGroup.full, icon: 'book', tone: 'secondary' },
     ],
   },
-]
+])
 
 // Lab 2: Dock-to-Sheet + Unified Floating Nav State
 const dockMode = ref<'unified' | 'unified-flush' | 'floating-only'>('unified')
-const dockModeOpts: SegmentOption<'unified' | 'unified-flush' | 'floating-only'>[] = [
-  { value: 'unified', label: '二合一悬浮' },
-  { value: 'unified-flush', label: '二合一贴边' },
-  { value: 'floating-only', label: '纯浮动胶囊' },
-]
-const dockNavItems: BottomDockItem[] = [
-  { id: 'read', label: '阅读', icon: 'home' },
-  { id: 'archive', label: '归档', icon: 'archive' },
-  { id: 'about', label: '关于', icon: 'user' },
-]
+const dockModeOpts = computed<SegmentOption<'unified' | 'unified-flush' | 'floating-only'>[]>(() => [
+  { value: 'unified', label: t.value.gestures.dockModeOpts.unified },
+  { value: 'unified-flush', label: t.value.gestures.dockModeOpts.unifiedFlush },
+  { value: 'floating-only', label: t.value.gestures.dockModeOpts.floatingOnly },
+])
+const dockNavItems = computed<BottomDockItem[]>(() => [
+  { id: 'read', label: t.value.gestures.dockNavItems.read, icon: 'home' },
+  { id: 'archive', label: t.value.gestures.dockNavItems.archive, icon: 'archive' },
+  { id: 'about', label: t.value.gestures.dockNavItems.about, icon: 'user' },
+])
 const dockNavTab = ref('read')
 const dockNavDir = ref<'left' | 'right'>('left')
 const dockSlideName = computed(() =>
@@ -92,8 +94,8 @@ const dockSlideName = computed(() =>
 )
 
 function switchDockNav(next: string) {
-  const fromIdx = dockNavItems.findIndex((i) => i.id === dockNavTab.value)
-  const toIdx = dockNavItems.findIndex((i) => i.id === next)
+  const fromIdx = dockNavItems.value.findIndex((i) => i.id === dockNavTab.value)
+  const toIdx = dockNavItems.value.findIndex((i) => i.id === next)
   dockNavDir.value = toIdx >= fromIdx ? 'left' : 'right'
   dockNavTab.value = next
 }
@@ -109,18 +111,18 @@ const morphTelemetry = ref<DockSheetMorphState>({
   isDragging: false,
 })
 
-const detentOpts: SegmentOption<DockSheetDetent>[] = [
-  { value: 'docked', label: '停靠 Docked' },
-  { value: 'half', label: '半屏 Half' },
-  { value: 'full', label: '全高 Full' },
-]
+const detentOpts = computed<SegmentOption<DockSheetDetent>[]>(() => [
+  { value: 'docked', label: t.value.gestures.detentOpts.docked },
+  { value: 'half', label: t.value.gestures.detentOpts.half },
+  { value: 'full', label: t.value.gestures.detentOpts.full },
+])
 
 // Lab 3: Standalone Bottom Dock Sheet (CatsOnPlains Floating vs Edge-Flush, no bottom nav)
 const soloSheetStyle = ref<'floating' | 'flush'>('floating')
-const soloSheetStyleOpts: SegmentOption<'floating' | 'flush'>[] = [
-  { value: 'floating', label: '悬浮版 (CatsOnPlains)' },
-  { value: 'flush', label: '贴边不悬浮版' },
-]
+const soloSheetStyleOpts = computed<SegmentOption<'floating' | 'flush'>[]>(() => [
+  { value: 'floating', label: t.value.gestures.soloStyleOpts.floating },
+  { value: 'flush', label: t.value.gestures.soloStyleOpts.flush },
+])
 const soloSheetDetent = ref<DockSheetDetent>('docked')
 const soloTelemetry = ref<DockSheetMorphState>({
   detent: 'docked',
@@ -143,27 +145,27 @@ const splitRightW = ref(190)
   <div class="demo-view">
     <div class="labs-grid">
       <!-- LAB 1: Bidirectional Squeeze / Push Drawer + 1:1 Gesture -->
-      <VlCard title="实验室 1 · 双向挤压式侧边栏（VlPushDrawer）" subtitle="向右滑打开左侧目录，向左滑打开右侧检查器；统一手势引擎，1:1 实时跟手挤压" accent-side="left" accent-tone="primary">
+      <VlCard :title="t.gestures.lab1.title" :subtitle="t.gestures.lab1.subtitle" accent-side="left" accent-tone="primary">
         <template #extra>
           <div style="display: flex; gap: 6px">
             <VlButton size="sm" :variant="drawerOpen ? 'primary' : 'outline'" icon="panel-left" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">
-              左侧
+              {{ t.gestures.lab1.leftBtn }}
             </VlButton>
             <VlButton size="sm" :variant="rightDrawerOpen ? 'secondary' : 'outline'" icon="panel-right" @click="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen">
-              右侧
+              {{ t.gestures.lab1.rightBtn }}
             </VlButton>
           </div>
         </template>
 
         <div class="telemetry-bar shape-rect">
-          <span>激活：<strong>{{ rightDrawerOpen ? 'RIGHT' : drawerOpen ? 'LEFT' : 'CENTER' }}</strong></span>
-          <span>左进度：<strong>{{ (drawerDragState.progress * 100).toFixed(0) }}%</strong></span>
-          <span>右进度：<strong>{{ (drawerDragState.rightProgress * 100).toFixed(0) }}%</strong></span>
-          <span>速度：<strong>{{ drawerDragState.velocity.toFixed(2) }}</strong></span>
+          <span>{{ t.gestures.lab1.activeLabel }}: <strong>{{ rightDrawerOpen ? 'RIGHT' : drawerOpen ? 'LEFT' : 'CENTER' }}</strong></span>
+          <span>{{ t.gestures.lab1.leftProgress }}: <strong>{{ (drawerDragState.progress * 100).toFixed(0) }}%</strong></span>
+          <span>{{ t.gestures.lab1.rightProgress }}: <strong>{{ (drawerDragState.rightProgress * 100).toFixed(0) }}%</strong></span>
+          <span>{{ t.gestures.lab1.velocityLabel }}: <strong>{{ drawerDragState.velocity.toFixed(2) }}</strong></span>
         </div>
 
         <div class="slider-ctrl">
-          <VlSlider v-model="drawerWidth" :min="200" :max="276" label="抽屉宽度" unit="px" />
+          <VlSlider v-model="drawerWidth" :min="200" :max="276" :label="t.gestures.lab1.drawerWidthLabel" unit="px" />
         </div>
 
         <div class="phone-stage shape-rect">
@@ -182,7 +184,7 @@ const splitRightW = ref(190)
                 mobile
               />
               <div class="drawer-inner">
-                <div class="drawer-head">左侧 · 章节目录</div>
+                <div class="drawer-head">{{ t.gestures.lab1.leftDrawerHead }}</div>
                 <VlSideNav
                   :groups="drawerGroups"
                   :active-id="drawerDoc"
@@ -193,7 +195,7 @@ const splitRightW = ref(190)
 
             <template #right-drawer>
               <div class="drawer-inner">
-                <div class="drawer-head">右侧 · 属性检查器</div>
+                <div class="drawer-head">{{ t.gestures.lab1.rightDrawerHead }}</div>
                 <VlSegmentedControl
                   v-model="rightInspectorMode"
                   :options="rightInspectorOpts"
@@ -202,16 +204,16 @@ const splitRightW = ref(190)
                 />
                 <div class="right-drawer-stack">
                   <template v-if="rightInspectorMode === 'layout'">
-                    <div class="right-kv shape-rect"><span>右侧宽度</span><code>{{ drawerWidth }}px</code></div>
-                    <div class="right-kv shape-rect"><span>打开方式</span><strong>向左滑动 ←</strong></div>
-                    <div class="right-kv shape-rect"><span>合拢方式</span><strong>向右滑动 →</strong></div>
+                    <div class="right-kv shape-rect"><span>{{ t.gestures.lab1.rightWidthKey }}</span><code>{{ drawerWidth }}px</code></div>
+                    <div class="right-kv shape-rect"><span>{{ t.gestures.lab1.openGestureKey }}</span><strong>{{ t.gestures.lab1.openGestureVal }}</strong></div>
+                    <div class="right-kv shape-rect"><span>{{ t.gestures.lab1.closeGestureKey }}</span><strong>{{ t.gestures.lab1.closeGestureVal }}</strong></div>
                   </template>
                   <template v-else>
-                    <div class="right-kv shape-rect"><span>触控驱动</span><code>pointer gesture</code></div>
-                    <div class="right-kv shape-rect"><span>缓动曲线</span><code>cubic-bezier</code></div>
+                    <div class="right-kv shape-rect"><span>{{ t.gestures.lab1.pointerDriverKey }}</span><code>pointer gesture</code></div>
+                    <div class="right-kv shape-rect"><span>{{ t.gestures.lab1.easingKey }}</span><code>cubic-bezier</code></div>
                   </template>
                   <VlButton size="sm" variant="secondary" block @click="rightDrawerOpen = false">
-                    收起右侧栏
+                    {{ t.gestures.lab1.collapseRightBtn }}
                   </VlButton>
                 </div>
               </div>
@@ -219,32 +221,28 @@ const splitRightW = ref(190)
 
             <VlTitleBar
               mode="mobile"
-              center-text="幕1 放出"
+              :center-text="t.gestures.lab1.phoneTitle"
               center-active
               :left-active="drawerOpen"
               :right-active="rightDrawerOpen"
               right-icon="panel-right"
-              right-title="切换右侧栏"
+              :right-title="t.gestures.lab1.rightToggleTitle"
               @toggle-left="rightDrawerOpen = false; drawerOpen = !drawerOpen"
               @toggle-right="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen"
             />
 
             <div class="phone-canvas" data-drawer-drag-zone>
               <div class="gesture-banner shape-rect">
-                <strong>→ 右滑左抽屉 · ← 左滑右抽屉</strong>
-                <p>
-                  同一套 <code>VlPushDrawer</code> + <code>usePushDrawerGesture</code> 引擎：在画布任意位置右滑呼出左侧目录，左滑呼出右侧检查器。
-                </p>
+                <strong>{{ t.gestures.lab1.bannerTitle }}</strong>
+                <p>{{ t.gestures.lab1.bannerDesc }}</p>
               </div>
-              <p class="sample-p">
-                触控与桌面端统一由 GPU <code>translate3d</code> 与贝塞尔缓动驱动，实时跟手拖拽无闪烁。
-              </p>
+              <p class="sample-p">{{ t.gestures.lab1.sampleText }}</p>
               <div style="display: flex; gap: 8px; flex-wrap: wrap">
                 <VlButton size="sm" variant="primary" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">
-                  切左侧栏
+                  {{ t.gestures.lab1.toggleLeftBtn }}
                 </VlButton>
                 <VlButton size="sm" variant="secondary" @click="drawerOpen = false; rightDrawerOpen = !rightDrawerOpen">
-                  切右侧栏
+                  {{ t.gestures.lab1.toggleRightBtn }}
                 </VlButton>
               </div>
             </div>
@@ -253,23 +251,23 @@ const splitRightW = ref(190)
       </VlCard>
 
       <!-- LAB 2: Dock to Sheet + Unified Nav (Floating vs Flush) -->
-      <VlCard title="实验室 2 · 二合一导航 + Dock to Sheet（VlDockSheet）" subtitle="拖住上方把手展开 Sheet；底部常驻导航滑块色块支持出界弹性放大且外框绝不越界" accent-side="left" accent-tone="secondary">
+      <VlCard :title="t.gestures.lab2.title" :subtitle="t.gestures.lab2.subtitle" accent-side="left" accent-tone="secondary">
         <div class="lab2-controls">
           <VlSegmentedControl v-model="dockMode" :options="dockModeOpts" size="sm" surface="activity" />
           <VlSegmentedControl v-model="dockDetent" :options="detentOpts" size="sm" surface="activity" />
         </div>
 
         <div class="telemetry-bar shape-rect">
-          <span>高度：<strong>{{ morphTelemetry.height }}px</strong></span>
-          <span>变形率：<strong>{{ (morphTelemetry.morphFactor * 100).toFixed(0) }}%</strong></span>
-          <span>边距：<strong>{{ morphTelemetry.inset }}px</strong></span>
-          <span>圆角：<strong>{{ morphTelemetry.radius }}px</strong></span>
+          <span>{{ t.gestures.lab2.heightLabel }}: <strong>{{ morphTelemetry.height }}px</strong></span>
+          <span>{{ t.gestures.lab2.morphRateLabel }}: <strong>{{ (morphTelemetry.morphFactor * 100).toFixed(0) }}%</strong></span>
+          <span>{{ t.gestures.lab2.insetLabel }}: <strong>{{ morphTelemetry.inset }}px</strong></span>
+          <span>{{ t.gestures.lab2.radiusLabel }}: <strong>{{ morphTelemetry.radius }}px</strong></span>
         </div>
 
         <div class="phone-stage shape-rect" style="margin-top: 10px">
           <VlTitleBar
             mode="mobile"
-            :center-text="dockMode === 'unified' ? `二合一悬浮 · ${dockNavTab}` : dockMode === 'unified-flush' ? `二合一贴边 · ${dockNavTab}` : '纯浮动胶囊导航'"
+            :center-text="dockMode === 'unified' ? t.gestures.lab2.centerTitleUnified(dockNavTab) : dockMode === 'unified-flush' ? t.gestures.lab2.centerTitleFlush(dockNavTab) : t.gestures.lab2.centerTitleFloating"
             center-active
             :show-left-toggle="false"
             :right-active="dockDetent !== 'docked'"
@@ -282,15 +280,13 @@ const splitRightW = ref(190)
                 <strong>
                   {{
                     dockNavTab === 'read'
-                      ? '阅读页 · 长按滑动底部导航色块试试'
+                      ? t.gestures.lab2.bannerRead
                       : dockNavTab === 'archive'
-                        ? '归档页 · 支持悬浮胶囊与贴边直条两种二合一'
-                        : '关于页 · 色块放大可自然溢出边界不被裁切'
+                        ? t.gestures.lab2.bannerArchive
+                        : t.gestures.lab2.bannerAbout
                   }}
                 </strong>
-                <p>
-                  导航容器严格贴合外框内边距，同时保留色块缩放与越界跟手弹性。
-                </p>
+                <p>{{ t.gestures.lab2.bannerDesc }}</p>
               </div>
             </Transition>
 
@@ -301,8 +297,8 @@ const splitRightW = ref(190)
               :active-nav="dockNavTab"
               :floating="dockMode !== 'unified-flush'"
               contained
-              title="快捷大纲与设置"
-              badge="实时变形"
+              :title="t.gestures.lab2.sheetTitle"
+              :badge="t.gestures.lab2.sheetBadge"
               icon="sparkles"
               @update:active-nav="switchDockNav"
               @morph-state="morphTelemetry = $event"
@@ -312,10 +308,10 @@ const splitRightW = ref(190)
               </template>
 
               <div class="dock-sheet-demo-body">
-                <p>当前形态：<strong>{{ dockMode === 'unified-flush' ? '贴边不悬浮 (FLUSH)' : '居中悬浮 (FLOATING)' }}</strong> · {{ dockDetent.toUpperCase() }}</p>
+                <p>{{ t.gestures.lab2.currentModeLabel }}: <strong>{{ dockMode === 'unified-flush' ? t.gestures.lab2.modeFlush : t.gestures.lab2.modeFloating }}</strong> · {{ dockDetent.toUpperCase() }}</p>
                 <div class="comment-stub shape-rect" v-for="i in 5" :key="i">
-                  <strong>快捷条目标记 #{{ i }}</strong>
-                  <span>二合一结构保证底层导航始终触手可及。</span>
+                  <strong>{{ t.gestures.lab2.itemTitle(i) }}</strong>
+                  <span>{{ t.gestures.lab2.itemDesc }}</span>
                 </div>
               </div>
             </VlDockSheet>
@@ -333,23 +329,23 @@ const splitRightW = ref(190)
       </VlCard>
 
       <!-- LAB 3: Standalone Bottom Dock Sheet (CatsOnPlains Floating vs Edge Flush) -->
-      <VlCard title="实验室 3 · 独立底部 Sheet（无底部导航栏 · 悬浮 vs 贴边）" subtitle="对照 CatsOnPlains 同款居中悬浮胶囊 Sheet，并提供零边距直角贴边不悬浮版本" accent-side="left" accent-tone="primary">
+      <VlCard :title="t.gestures.lab3.title" :subtitle="t.gestures.lab3.subtitle" accent-side="left" accent-tone="primary">
         <div class="lab2-controls">
           <VlSegmentedControl v-model="soloSheetStyle" :options="soloSheetStyleOpts" size="sm" surface="activity" />
           <VlSegmentedControl v-model="soloSheetDetent" :options="detentOpts" size="sm" surface="activity" />
         </div>
 
         <div class="telemetry-bar shape-rect">
-          <span>样式：<strong>{{ soloSheetStyle === 'floating' ? 'FLOATING' : 'FLUSH' }}</strong></span>
-          <span>高度：<strong>{{ soloTelemetry.height }}px</strong></span>
-          <span>边距：<strong>{{ soloTelemetry.inset }}px</strong></span>
-          <span>圆角：<strong>{{ soloTelemetry.radius }}px</strong></span>
+          <span>{{ t.gestures.lab3.styleLabel }}: <strong>{{ soloSheetStyle === 'floating' ? 'FLOATING' : 'FLUSH' }}</strong></span>
+          <span>{{ t.gestures.lab3.heightLabel }}: <strong>{{ soloTelemetry.height }}px</strong></span>
+          <span>{{ t.gestures.lab3.insetLabel }}: <strong>{{ soloTelemetry.inset }}px</strong></span>
+          <span>{{ t.gestures.lab3.radiusLabel }}: <strong>{{ soloTelemetry.radius }}px</strong></span>
         </div>
 
         <div class="phone-stage shape-rect" style="margin-top: 10px">
           <VlTitleBar
             mode="mobile"
-            :center-text="soloSheetStyle === 'floating' ? 'CatsOnPlains 悬浮停靠 Sheet' : '贴边不悬浮 Bottom Sheet'"
+            :center-text="soloSheetStyle === 'floating' ? t.gestures.lab3.centerFloating : t.gestures.lab3.centerFlush"
             center-active
             :show-left-toggle="false"
             :right-active="soloSheetDetent !== 'docked'"
@@ -358,25 +354,23 @@ const splitRightW = ref(190)
 
           <div class="phone-canvas" style="flex: 1; position: relative">
             <div class="gesture-banner shape-rect">
-              <strong>{{ soloSheetStyle === 'floating' ? '悬浮态（CatsOnPlains 同款）' : '贴边不悬浮态（Edge Flush）' }}</strong>
+              <strong>{{ soloSheetStyle === 'floating' ? t.gestures.lab3.bannerFloatingTitle : t.gestures.lab3.bannerFlushTitle }}</strong>
               <p>
                 {{
                   soloSheetStyle === 'floating'
-                    ? '未绑定底部导航栏，仅在底部居中药丸停靠；向上拖拽手柄可展开为全宽阅读评论区面板。'
-                    : '紧贴屏幕左右及底部边缘，遵循三大几何法则采用 0px 纯直角架构与 2px 顶部强调条，展开零横向边距跳变。'
+                    ? t.gestures.lab3.bannerFloatingDesc
+                    : t.gestures.lab3.bannerFlushDesc
                 }}
               </p>
             </div>
-            <p class="sample-p">
-              独立底部 Sheet 层级默认高于带底部导航栏的 Dock Sheet，同时独立弹窗式 <code>VlSheet</code> 始终处于最上层。
-            </p>
+            <p class="sample-p">{{ t.gestures.lab3.sampleText }}</p>
 
             <VlDockSheet
               v-model:detent="soloSheetDetent"
               :floating="soloSheetStyle === 'floating'"
               contained
-              title="评论区"
-              badge="预留"
+              :title="t.gestures.lab3.sheetTitle"
+              :badge="t.gestures.lab3.sheetBadge"
               icon="comment"
               @morph-state="soloTelemetry = $event"
             >
@@ -387,12 +381,12 @@ const splitRightW = ref(190)
               <div class="dock-sheet-demo-body">
                 <VlEmptyState
                   compact
-                  title="评论区与扩展内容"
-                  description="拉住底部停靠栏把手向上展开即可变为全宽面板；支持悬浮药丸与零间隙贴边两种底座几何。"
+                  :title="t.gestures.lab3.emptyTitle"
+                  :description="t.gestures.lab3.emptyDesc"
                 />
                 <div class="comment-stub shape-rect" v-for="i in 4" :key="i">
-                  <strong>读者段评示例 #{{ i }}</strong>
-                  <span>无底部导航栏的纯净扩展抽屉，适合阅读器评论区或播放器面板。</span>
+                  <strong>{{ t.gestures.lab3.commentTitle(i) }}</strong>
+                  <span>{{ t.gestures.lab3.commentDesc }}</span>
                 </div>
               </div>
             </VlDockSheet>
@@ -402,14 +396,14 @@ const splitRightW = ref(190)
     </div>
 
     <!-- LAB 3: SplitPane + WinUI ScrollArea -->
-    <VlCard title="实验室 3 · 可拖拽三栏分屏（VlSplitPane）与 WinUI 动画滚动条（VlScrollArea）" subtitle="拖动灰色分屏把手调整宽窄，双击复位；鼠标悬停右侧滚动条观察药丸展开为纯直角橘色条" accent-side="top" accent-tone="primary">
+    <VlCard :title="t.gestures.splitLab.title" :subtitle="t.gestures.splitLab.subtitle" accent-side="top" accent-tone="primary">
       <template #extra>
         <div style="display: flex; gap: 6px">
           <VlButton size="xs" :variant="splitLeftOpen ? 'primary' : 'neutral'" @click="splitLeftOpen = !splitLeftOpen">
-            左侧栏
+            {{ t.gestures.splitLab.leftBtn }}
           </VlButton>
           <VlButton size="xs" :variant="splitRightOpen ? 'secondary' : 'neutral'" @click="splitRightOpen = !splitRightOpen">
-            右侧栏
+            {{ t.gestures.splitLab.rightBtn }}
           </VlButton>
         </div>
       </template>
@@ -427,17 +421,17 @@ const splitRightW = ref(190)
         >
           <template #left>
             <div class="split-col-demo">
-              <strong>左面板 ({{ splitLeftW }}px)</strong>
-              <p>宽度低于阈值不可继续缩窄，折叠时伴随平移动画。</p>
+              <strong>{{ t.gestures.splitLab.leftPanel(splitLeftW) }}</strong>
+              <p>{{ t.gestures.splitLab.leftDesc }}</p>
             </div>
           </template>
 
           <template #center>
             <VlScrollArea class="split-scroll-demo">
               <div class="split-scroll-inner">
-                <strong>中央画布 · WinUI 悬浮滚动条</strong>
+                <strong>{{ t.gestures.splitLab.centerTitle }}</strong>
                 <p v-for="n in 14" :key="n" class="scroll-line">
-                  滚动测试行 #{{ n }} — 轨道固定在边缘，拇指在悬停时从 4px 药丸展开为 10px 橘色纯直角条，零位移跳动。
+                  {{ t.gestures.splitLab.scrollLine(n) }}
                 </p>
               </div>
             </VlScrollArea>
@@ -445,8 +439,8 @@ const splitRightW = ref(190)
 
           <template #right>
             <div class="split-col-demo">
-              <strong>右面板 ({{ splitRightW }}px)</strong>
-              <p>双击分隔条上的把手即可重置为默认宽度。</p>
+              <strong>{{ t.gestures.splitLab.rightPanel(splitRightW) }}</strong>
+              <p>{{ t.gestures.splitLab.rightDesc }}</p>
             </div>
           </template>
         </VlSplitPane>
@@ -455,14 +449,14 @@ const splitRightW = ref(190)
 
     <!-- LAB 4: M3E Pull-to-Refresh -->
     <VlCard
-      title="实验室 4 · M3E 几何形态渐变下拉刷新（VlPullRefresh）"
-      subtitle="按住列表向下拖拽时圆球平滑形变为四叶草、晴日与繁花；也可直接点击右上角按钮触发刷新循环"
+      :title="t.gestures.pullLab.title"
+      :subtitle="t.gestures.pullLab.subtitle"
       accent-side="left"
       accent-tone="secondary"
     >
       <template #extra>
         <VlButton size="xs" variant="secondary" shape="pill" icon="refresh" :loading="isRefreshing" @click="handlePullRefresh">
-          触发同步（已刷新 {{ refreshCount }} 次）
+          {{ t.gestures.pullLab.triggerBtn(refreshCount) }}
         </VlButton>
       </template>
 
@@ -470,8 +464,8 @@ const splitRightW = ref(190)
         <VlPullRefresh :refreshing="isRefreshing" tone="primary" @refresh="handlePullRefresh">
           <div class="pull-lab-list">
             <div class="comment-stub shape-rect" v-for="idx in 4" :key="idx">
-              <strong>动态数据条目 #{{ refreshCount * 4 + idx }}</strong>
-              <span>在区域顶部按住鼠标或手指下拉即可预览实时 72 顶点几何形变指示器。</span>
+              <strong>{{ t.gestures.pullLab.itemTitle(refreshCount * 4 + idx) }}</strong>
+              <span>{{ t.gestures.pullLab.itemDesc }}</span>
             </div>
           </div>
         </VlPullRefresh>

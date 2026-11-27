@@ -3,6 +3,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import { useNavScrubGesture } from '../../composables/useNavScrubGesture'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface BottomDockItem {
   id: string
@@ -26,7 +29,6 @@ const props = withDefaults(
     contained: false,
     embedded: false,
     width: '',
-    ariaLabel: '底部导航栏',
   },
 )
 
@@ -229,7 +231,7 @@ onBeforeUnmount(() => {
     class="vl-bottom-dock vl-dock-capsule-host"
     :class="{ contained, embedded, pressed: scrubPressed, dragging: scrubDragging }"
     :style="hostStyle"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.nav.bottomDockAria"
   >
     <div
       ref="trackRef"
@@ -276,7 +278,7 @@ onBeforeUnmount(() => {
     class="vl-bottom-dock vl-dock-bar shape-rect"
     :class="{ contained, embedded, pressed: scrubPressed, dragging: scrubDragging }"
     :style="{ gridTemplateColumns: `repeat(${Math.max(1, items.length)}, 1fr)` }"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.nav.bottomDockAria"
   >
     <span
       v-show="ready && indW > 0"

@@ -14,6 +14,19 @@
             pref === 'dark' || pref === 'light' ? pref : prefersDark ? 'dark' : 'light';
           const accent = localStorage.getItem('vl-demo-accent') || 'default';
           document.documentElement.dataset.accent = accent === 'swapped' ? 'swapped' : 'default';
+          const locPref = localStorage.getItem('valance-locale-preference') || 'system';
+          const mapLoc = (raw) => {
+            const low = String(raw || '').toLowerCase();
+            if (low.startsWith('ja')) return 'ja';
+            if (low.startsWith('zh-tw') || low.startsWith('zh-hk') || low.startsWith('zh-mo') || low.includes('hant')) return 'zh-TW';
+            if (low.startsWith('zh')) return 'zh-CN';
+            return 'en';
+          };
+          const resolvedLoc =
+            locPref === 'zh-CN' || locPref === 'zh-TW' || locPref === 'en' || locPref === 'ja'
+              ? locPref
+              : mapLoc((navigator.languages && navigator.languages[0]) || navigator.language || 'zh-CN');
+          document.documentElement.lang = resolvedLoc;
         } catch {}
       })();
     </script>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 withDefaults(
   defineProps<{
@@ -48,7 +51,7 @@ const emit = defineEmits<{
       v-if="closable"
       type="button"
       class="vl-tag-close shape-circle"
-      aria-label="移除标签"
+      :aria-label="messages.tag.removeAria"
       @click.stop="emit('close')"
     >
       <VlIcon name="close" :size="9" />

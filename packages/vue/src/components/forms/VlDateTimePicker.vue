@@ -7,6 +7,9 @@ import VlCalendar from './VlCalendar.vue'
 import VlTimePicker from './VlTimePicker.vue'
 import { useViewportTier } from '../../composables/useViewportTier'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -24,7 +27,6 @@ const props = withDefaults(
   }>(),
   {
     modelValue: '',
-    placeholder: '选择日期与时间…',
     tone: 'primary',
     format: '24h',
     disabled: false,
@@ -149,7 +151,7 @@ onBeforeUnmount(() => {
       @click="toggle"
     >
       <VlIcon name="calendar" :size="14" class="vl-dt-icon" />
-      <span class="vl-dt-val">{{ displayFormatted || placeholder }}</span>
+      <span class="vl-dt-val">{{ displayFormatted || placeholder || messages.dateTimePicker.placeholder }}</span>
       <VlIcon name="clock" :size="13" class="vl-dt-clock" />
     </button>
 
@@ -160,7 +162,7 @@ onBeforeUnmount(() => {
           :class="isDialogMode ? 'vl-picker-dialog-overlay shape-rect' : 'vl-dt-pop-host'"
           :role="isDialogMode ? 'dialog' : undefined"
           :aria-modal="isDialogMode ? 'true' : undefined"
-          :aria-label="isDialogMode ? (label || '选择日期与时间') : undefined"
+          :aria-label="isDialogMode ? (label || messages.dateTimePicker.selectDateTime) : undefined"
           @click.self="isDialogMode && (open = false)"
         >
           <div
@@ -172,13 +174,13 @@ onBeforeUnmount(() => {
             <template v-if="isDialogMode">
               <div class="vl-dt-dialog-bar shape-rect" :class="`t-${tone}`" />
               <div class="vl-dt-dialog-head">
-                <span class="vl-dt-dialog-title">{{ label || '选择日期与时间' }}</span>
+                <span class="vl-dt-dialog-title">{{ label || messages.dateTimePicker.selectDateTime }}</span>
                 <VlIconButton
                   icon="close"
                   size="sm"
                   morph-on-hover
-                  title="关闭"
-                  aria-label="关闭"
+                  :title="messages.common.close"
+                  :aria-label="messages.common.close"
                   class="vl-dt-dialog-close"
                   @click="open = false"
                 />
@@ -241,7 +243,7 @@ onBeforeUnmount(() => {
               class="vl-dt-done"
               @click="open = false"
             >
-              完成选择
+              {{ messages.common.done }}
             </VlButton>
           </div>
           </div>

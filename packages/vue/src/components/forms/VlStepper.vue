@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -63,7 +66,7 @@ function adjust(delta: number) {
         type="button"
         class="vl-step-btn"
         :disabled="!canDec"
-        :title="`减小 (${decrementLabel})`"
+        :title="messages.stepper.decTitle(decrementLabel)"
         @click="adjust(-step)"
       >
         {{ decrementLabel }}
@@ -75,7 +78,7 @@ function adjust(delta: number) {
         type="button"
         class="vl-step-btn"
         :disabled="!canInc"
-        :title="`增大 (${incrementLabel})`"
+        :title="messages.stepper.incTitle(incrementLabel)"
         @click="adjust(step)"
       >
         {{ incrementLabel }}

@@ -2,6 +2,9 @@
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -83,8 +86,8 @@ onBeforeUnmount(() => {
             icon="close"
             size="sm"
             morph-on-hover
-            title="关闭"
-            aria-label="关闭"
+            :title="messages.common.close"
+            :aria-label="messages.common.close"
             class="vl-dialog-close"
             @click="close"
           />

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -57,8 +60,8 @@ onBeforeUnmount(() => {
       class="vl-back-top"
       :class="`t-${tone}`"
       :style="{ bottom: `calc(${bottomOffset}px + var(--vl-safe-bottom, env(safe-area-inset-bottom, 0px)))` }"
-      aria-label="回到顶部"
-      title="回到顶部"
+      :aria-label="messages.nav.backTopAria"
+      :title="messages.nav.backTopAria"
       @click="scrollToTop"
     >
       <VlIcon name="arrow-up" :size="16" />

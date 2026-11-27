@@ -3,6 +3,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
 import { useNavScrubGesture } from '../../composables/useNavScrubGesture'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 export interface NavRailItem {
   id: string
@@ -25,7 +28,6 @@ const props = withDefaults(
     variant: 'capsule',
     side: 'left',
     contained: false,
-    ariaLabel: '竖向手势导航栏',
   },
 )
 
@@ -214,7 +216,7 @@ onBeforeUnmount(() => {
       class="vl-nav-rail-capsule"
       :class="{ pressed: scrubPressed, dragging: scrubDragging }"
       :style="capsuleContainerStyle"
-      :aria-label="ariaLabel"
+      :aria-label="ariaLabel ?? messages.nav.navRailAria"
       @pointerdown="rawPointerDown($event)"
     >
       <span
@@ -255,7 +257,7 @@ onBeforeUnmount(() => {
     class="vl-nav-rail-bar shape-rect"
     :class="[`side-${side}`, { contained, pressed: scrubPressed, dragging: scrubDragging }]"
     :style="{ gridTemplateRows: `repeat(${Math.max(1, items.length)}, 1fr)` }"
-    :aria-label="ariaLabel"
+    :aria-label="ariaLabel ?? messages.nav.navRailAria"
     @pointerdown="rawPointerDown($event)"
   >
     <span

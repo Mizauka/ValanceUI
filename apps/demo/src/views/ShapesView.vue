@@ -10,10 +10,14 @@ import {
   VlSegmentedControl,
   VlSlider,
   VlShape,
+  getLocalizedShapeLabel,
   type M3ShapeCategory,
   type M3ShapeName,
   type SegmentOption,
 } from '@valance-ui/vue'
+import { useDemoI18n } from '../i18n'
+
+const { t } = useDemoI18n()
 
 const categoryFilter = ref<'all' | M3ShapeCategory>('all')
 const previewTone = ref<'primary' | 'secondary' | 'neutral'>('primary')
@@ -24,26 +28,26 @@ const morphToShape = ref<M3ShapeName>('flower')
 const morphManualRatio = ref(35)
 const autoCycleEnabled = ref(true)
 
-const categoryOptions: SegmentOption<'all' | M3ShapeCategory>[] = [
-  { value: 'all', label: '全部 35 种' },
-  { value: 'basic', label: '基础曲线' },
-  { value: 'polygon', label: '多边形/钻石' },
-  { value: 'scalloped', label: '太阳/曲奇' },
-  { value: 'organic', label: '花草云朵' },
-  { value: 'expressive', label: '高表现力' },
-]
+const categoryOptions = computed<SegmentOption<'all' | M3ShapeCategory>[]>(() => [
+  { value: 'all', label: t.value.shapes.categories.all },
+  { value: 'basic', label: t.value.shapes.categories.basic },
+  { value: 'polygon', label: t.value.shapes.categories.polygon },
+  { value: 'scalloped', label: t.value.shapes.categories.scalloped },
+  { value: 'organic', label: t.value.shapes.categories.organic },
+  { value: 'expressive', label: t.value.shapes.categories.expressive },
+])
 
-const variantOptions: SegmentOption<'solid' | 'soft' | 'outline'>[] = [
-  { value: 'solid', label: '实心 Solid' },
-  { value: 'soft', label: '浅色 Soft' },
-  { value: 'outline', label: '描边 Outline' },
-]
+const variantOptions = computed<SegmentOption<'solid' | 'soft' | 'outline'>[]>(() => [
+  { value: 'solid', label: t.value.shapes.variants.solid },
+  { value: 'soft', label: t.value.shapes.variants.soft },
+  { value: 'outline', label: t.value.shapes.variants.outline },
+])
 
-const toneOptions: SegmentOption<'primary' | 'secondary' | 'neutral'>[] = [
-  { value: 'primary', label: '主色调' },
-  { value: 'secondary', label: '副色调' },
-  { value: 'neutral', label: '炭岩中性' },
-]
+const toneOptions = computed<SegmentOption<'primary' | 'secondary' | 'neutral'>[]>(() => [
+  { value: 'primary', label: t.value.shapes.tones.primary },
+  { value: 'secondary', label: t.value.shapes.tones.secondary },
+  { value: 'neutral', label: t.value.shapes.tones.neutral },
+])
 
 const filteredShapes = computed(() =>
   categoryFilter.value === 'all'
@@ -59,8 +63,8 @@ const activeMeta = computed(
 <template>
   <div class="demo-view">
     <VlCard
-      title="Material 3 Expressive 35 种原生几何轮廓（VlShape）"
-      subtitle="严格避开中等圆角矩形（0px / 50% / 9999px + 35 种高表现力 SVG 矢量图形）"
+      :title="t.shapes.cardTitle"
+      :subtitle="t.shapes.cardSubtitle"
       accent-side="left"
       accent-tone="primary"
     >
@@ -95,12 +99,10 @@ const activeMeta = computed(
         <div class="inspector-meta">
           <div class="inspector-title">
             <strong>{{ activeMeta.label }}</strong>
-            <span class="zh-sub">{{ activeMeta.zhLabel }}</span>
+            <span v-if="getLocalizedShapeLabel(activeMeta.id) !== activeMeta.label" class="zh-sub">{{ getLocalizedShapeLabel(activeMeta.id) }}</span>
             <VlBadge tone="primary" size="xs">{{ activeMeta.category }}</VlBadge>
           </div>
-          <p class="inspector-desc">
-            当前选中 <code>shape="{{ activeMeta.id }}"</code>。点击左侧图形触发形态变换（默认悬停变形为 <code>sunny</code>，激活态切换为 <code>flower</code>），全部采用统一 <code>0 0 100 100</code> 矢量路径渲染，零阴影、零中等圆角矩形。
-          </p>
+          <p class="inspector-desc">{{ t.shapes.inspectorDesc(activeMeta.id) }}</p>
         </div>
 
         <div class="inspector-avatars">
@@ -136,20 +138,18 @@ const activeMeta = computed(
 
         <div class="morph-lab-controls">
           <div class="inspector-title">
-            <strong>实时 72 顶点等弧长形变引擎（M3E Smooth Morphing）</strong>
+            <strong>{{ t.shapes.morphEngineTitle }}</strong>
             <VlBadge tone="secondary" size="xs">{{ selectedShape }} → {{ morphToShape }}</VlBadge>
           </div>
-          <p class="inspector-desc">
-            支持任意两种 M3E 矢量图形之间 60fps 丝滑顶点插值，用于下拉刷新进度驱动、M3E 形变加载指示器与空状态呼吸占位符。
-          </p>
-          <VlSlider v-model="morphManualRatio" :min="0" :max="100" label="手动混合形变插值比例" unit="%" />
+          <p class="inspector-desc">{{ t.shapes.morphEngineDesc }}</p>
+          <VlSlider v-model="morphManualRatio" :min="0" :max="100" :label="t.shapes.morphRatioLabel" unit="%" />
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px">
-            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'flower'">目标：繁花</VlButton>
-            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'heart'">目标：爱心</VlButton>
-            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'sunny'">目标：晴日</VlButton>
-            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'burst'">目标：爆发</VlButton>
+            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'flower'">{{ t.shapes.targets.flower }}</VlButton>
+            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'heart'">{{ t.shapes.targets.heart }}</VlButton>
+            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'sunny'">{{ t.shapes.targets.sunny }}</VlButton>
+            <VlButton size="xs" variant="outline" shape="pill" @click="morphToShape = 'burst'">{{ t.shapes.targets.burst }}</VlButton>
             <VlButton size="xs" variant="secondary" shape="pill" @click="autoCycleEnabled = !autoCycleEnabled">
-              {{ autoCycleEnabled ? '暂停连续循环' : '开启连续循环' }}
+              {{ autoCycleEnabled ? t.shapes.autoCyclePause : t.shapes.autoCycleStart }}
             </VlButton>
           </div>
         </div>
@@ -172,7 +172,7 @@ const activeMeta = computed(
             :size="48"
           />
           <span class="m3-name">{{ item.label }}</span>
-          <span class="m3-zh">{{ item.zhLabel }}</span>
+          <span class="m3-zh">{{ getLocalizedShapeLabel(item.id) !== item.label ? getLocalizedShapeLabel(item.id) : item.id }}</span>
         </button>
       </div>
     </VlCard>

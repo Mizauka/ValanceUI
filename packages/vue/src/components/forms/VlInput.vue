@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import VlIcon from '../icons/VlIcon.vue'
 import type { IconName } from '../icons/iconRegistry'
+import { useLocale } from '../../composables/useLocale'
+
+const { messages } = useLocale()
 
 const props = withDefaults(
   defineProps<{
@@ -106,8 +109,8 @@ defineExpose({
         v-if="clearable && String(modelValue).length > 0 && !disabled && !readonly"
         type="button"
         class="vl-input-clear shape-circle"
-        title="清空"
-        aria-label="清空"
+        :title="messages.common.clear"
+        :aria-label="messages.common.clear"
         @click="clear"
       >
         <VlIcon name="close" :size="10" />

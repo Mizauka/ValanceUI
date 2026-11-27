@@ -15,6 +15,10 @@ const props = withDefaults(
     maxHeight?: string
     maxWidth?: string
     width?: string
+    expandable?: boolean
+    detent?: 'half' | 'full'
+    halfRatio?: number
+    fullRatio?: number
     contained?: boolean
     closeOnBackdrop?: boolean
     accentTone?: 'primary' | 'secondary'
@@ -25,6 +29,10 @@ const props = withDefaults(
     maxHeight: '88dvh',
     maxWidth: '640px',
     width: '360px',
+    expandable: false,
+    detent: 'half',
+    halfRatio: 0.56,
+    fullRatio: 0.9,
     contained: false,
     closeOnBackdrop: true,
     accentTone: 'primary',
@@ -33,6 +41,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:open', open: boolean): void
+  (e: 'update:detent', detent: 'half' | 'full'): void
   (e: 'close'): void
   (e: 'closed'): void
 }>()
@@ -53,6 +62,9 @@ const isDragging = ref(false)
 const dismissing = ref(false)
 const dragOffsetX = ref(0)
 const dragOffsetY = ref(0)
+const internalDetent = ref<'half' | 'full'>(props.detent)
+const dragHeightPx = ref<number | null>(null)
+const hostViewportHeight = ref(typeof window !== 'undefined' ? window.innerHeight || 800 : 800)
 
 let dragStartX = 0
 let dragStartY = 0
@@ -61,6 +73,9 @@ let dragLastY = 0
 let dragLastTime = 0
 let dragVelocityX = 0
 let dragVelocityY = 0
+let dragStartHeight = 0
+let dragStartDetent: 'half' | 'full' = 'half'
+let touchHeadMode: 'undecided' | 'native-dismiss' | 'detent-drag' = 'undecided'
 let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
 let nativeSettleTimer: ReturnType<typeof setTimeout> | null = null
@@ -92,7 +107,41 @@ const nativeDismissStyle = computed(() =>
     : { width: `${snapDismissPx.value}px`, height: '100%', flexBasis: `${snapDismissPx.value}px` },
 )
 
+const halfPx = computed(() => Math.round(hostViewportHeight.value * props.halfRatio))
+const fullPx = computed(() => Math.max(halfPx.value + 80, Math.round(hostViewportHeight.value * props.fullRatio)))
+
+function syncViewportHeight() {
+  if (props.contained) {
+    const hostEl = sheetRef.value?.parentElement
+    if (hostEl && hostEl.clientHeight > 0) {
+      hostViewportHeight.value = hostEl.clientHeight
+      return
+    }
+  }
+  if (typeof window !== 'undefined' && window.innerHeight > 0) {
+    hostViewportHeight.value = window.innerHeight
+  }
+}
+
+function setDetent(next: 'half' | 'full') {
+  if (internalDetent.value === next) return
+  internalDetent.value = next
+  emit('update:detent', next)
+}
+
+function toggleDetent() {
+  setDetent(internalDetent.value === 'full' ? 'half' : 'full')
+}
+
+watch(
+  () => props.detent,
+  (next) => {
+    internalDetent.value = next
+  },
+)
+
 function measureSheetDim(): number {
+  syncViewportHeight()
   const sheet = sheetRef.value
   if (!sheet) return 360
   const raw = props.placement === 'bottom' ? sheet.offsetHeight : sheet.offsetWidth
@@ -256,7 +305,7 @@ async function runNativeTimelineAnim(direction: 'open' | 'close') {
   })
   nativeDriverTimer = setTimeout(() => {
     finishNativeDriverAnim(token)
-  }, 540)
+  }, 640)
 }
 
 function offscreenPercent(): string {
@@ -331,6 +380,9 @@ watch(
     const token = ++nativeAnimToken
     clearNativeDriverTimers()
     if (isOpen) {
+      syncViewportHeight()
+      internalDetent.value = props.detent
+      dragHeightPx.value = null
       dismissing.value = false
       dismissFromOffset = null
       isDragging.value = false
@@ -413,7 +465,18 @@ const nativeBackdropAnimClass = computed(() => {
 const sheetDynamicStyle = computed(() => {
   const base: Record<string, string> = {}
   if (props.placement === 'bottom') {
-    base.maxHeight = props.maxHeight
+    if (props.expandable) {
+      const targetH =
+        dragHeightPx.value !== null
+          ? dragHeightPx.value
+          : internalDetent.value === 'full'
+            ? fullPx.value
+            : halfPx.value
+      base.height = `${Math.round(targetH)}px`
+      base.maxHeight = `${fullPx.value}px`
+    } else {
+      base.maxHeight = props.maxHeight
+    }
     base['--vl-sheet-max-w'] = props.maxWidth
     if ((isDragging.value || dismissing.value) && dragOffsetY.value > 0) {
       base.transform = `translate3d(0, ${dragOffsetY.value}px, 0)`
@@ -438,8 +501,14 @@ function onBeforeEnter(el: Element) {
 
 function onEnter(el: Element, done: () => void) {
   const htmlEl = el as HTMLElement
+  syncViewportHeight()
+  const totalDim =
+    props.placement === 'bottom' ? htmlEl.offsetHeight || 420 : htmlEl.offsetWidth || 360
+  const durMs = Math.round(Math.min(460, Math.max(360, 310 + totalDim * 0.16)))
   void htmlEl.offsetHeight
+
   let settled = false
+  let enterRaf: number | null = null
   const finish = () => {
     if (settled) return
     settled = true
@@ -449,14 +518,33 @@ function onEnter(el: Element, done: () => void) {
   const onEnd = (e: TransitionEvent) => {
     if (e.target === htmlEl && e.propertyName === 'transform') finish()
   }
-  const timer = window.setTimeout(finish, 450)
+  const timer = window.setTimeout(finish, durMs + 80)
   htmlEl.addEventListener('transitionend', onEnd)
   activeAnimCleanup = () => {
+    if (enterRaf !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(enterRaf)
+      enterRaf = null
+    }
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)'
-  htmlEl.style.transform = 'translate3d(0, 0, 0)'
+
+  const startTransition = () => {
+    enterRaf = null
+    if (settled) return
+    htmlEl.style.transition = `transform ${durMs}ms cubic-bezier(0.26, 0.68, 0.28, 1)`
+    htmlEl.style.transform = 'translate3d(0, 0, 0)'
+  }
+
+  // Defer one paint frame so heavy forms (like TVP forms) never coalesce initial offscreen frame away
+  if (typeof requestAnimationFrame === 'function') {
+    enterRaf = requestAnimationFrame(() => {
+      void htmlEl.offsetHeight
+      startTransition()
+    })
+  } else {
+    startTransition()
+  }
 }
 
 function onAfterEnter(el: Element) {
@@ -488,7 +576,7 @@ function onLeave(el: Element, done: () => void) {
       : htmlEl.offsetWidth || 360
   const traveled = dismissFromOffset ? Math.abs(dismissFromOffset.px) : 0
   const remainRatio = Math.max(0.25, Math.min(1, 1 - traveled / Math.max(1, totalDim)))
-  const durMs = Math.round(240 + 140 * remainRatio)
+  const durMs = Math.round(Math.max(280, (310 + totalDim * 0.15) * remainRatio))
 
   void htmlEl.offsetHeight
   let settled = false
@@ -501,13 +589,13 @@ function onLeave(el: Element, done: () => void) {
   const onEnd = (e: TransitionEvent) => {
     if (e.target === htmlEl && e.propertyName === 'transform') finish()
   }
-  const timer = window.setTimeout(finish, durMs + 60)
+  const timer = window.setTimeout(finish, durMs + 80)
   htmlEl.addEventListener('transitionend', onEnd)
   activeAnimCleanup = () => {
     window.clearTimeout(timer)
     htmlEl.removeEventListener('transitionend', onEnd)
   }
-  htmlEl.style.transition = `transform ${durMs}ms cubic-bezier(0.32, 0.72, 0, 1)`
+  htmlEl.style.transition = `transform ${durMs}ms cubic-bezier(0.32, 0.08, 0.24, 1)`
   htmlEl.style.transform = offscreenTransform()
 }
 
@@ -517,6 +605,7 @@ function onAfterLeave() {
   dismissFromOffset = null
   dragOffsetX.value = 0
   dragOffsetY.value = 0
+  dragHeightPx.value = null
   emit('closed')
 }
 
@@ -524,8 +613,110 @@ function onAnimCancel() {
   clearActiveAnim()
 }
 
+function applyExpandableVerticalDrag(dy: number) {
+  const half = halfPx.value
+  const full = fullPx.value
+  const candidateH = dragStartHeight - dy
+  if (candidateH >= half) {
+    const clampedH =
+      candidateH > full ? full + (candidateH - full) * 0.15 : candidateH
+    dragHeightPx.value = Math.round(clampedH)
+    dragOffsetY.value = 0
+  } else {
+    dragHeightPx.value = half
+    dragOffsetY.value = Math.max(0, half - candidateH)
+  }
+}
+
+function settleExpandableVerticalDrag() {
+  const half = halfPx.value
+  const full = fullPx.value
+  const curH = dragHeightPx.value ?? (dragStartDetent === 'full' ? full : half)
+  const downOffset = dragOffsetY.value
+
+  if (downOffset > 0 && (dragVelocityY > 0.45 || downOffset > Math.min(140, half * 0.25))) {
+    dismissFromOffset = { axis: 'Y', px: downOffset }
+    dismissing.value = true
+    isDragging.value = false
+    dragHeightPx.value = null
+    close()
+    return
+  }
+
+  dragHeightPx.value = null
+  dragOffsetY.value = 0
+  isDragging.value = false
+
+  if (dragStartDetent === 'full' && downOffset === 0 && dragVelocityY > 0.75 && curH < half + 40) {
+    setDetent('half')
+    return
+  }
+
+  if (dragVelocityY < -0.35) {
+    setDetent('full')
+    return
+  }
+  if (dragVelocityY > 0.35) {
+    setDetent('half')
+    return
+  }
+
+  setDetent(curH >= (half + full) / 2 ? 'full' : 'half')
+}
+
+function onTouchHeadStart(e: TouchEvent) {
+  if (!isNativeTouchScroll.value || !props.expandable || props.placement !== 'bottom') return
+  if (e.touches.length !== 1) return
+  syncViewportHeight()
+  const t = e.touches[0]!
+  dragStartY = t.clientY
+  dragLastY = t.clientY
+  dragLastTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  dragVelocityY = 0
+  dragStartDetent = internalDetent.value
+  dragStartHeight = dragStartDetent === 'full' ? fullPx.value : halfPx.value
+  touchHeadMode = 'undecided'
+}
+
+function onTouchHeadMove(e: TouchEvent) {
+  if (!isNativeTouchScroll.value || !props.expandable || props.placement !== 'bottom') return
+  if (e.touches.length !== 1) return
+  const t = e.touches[0]!
+  const dy = t.clientY - dragStartY
+
+  if (touchHeadMode === 'undecided') {
+    if (Math.abs(dy) < 6) return
+    if (dragStartDetent === 'half' && dy > 0) {
+      touchHeadMode = 'native-dismiss'
+      return
+    }
+    touchHeadMode = 'detent-drag'
+    isDragging.value = true
+  }
+
+  if (touchHeadMode === 'detent-drag') {
+    if (e.cancelable) e.preventDefault()
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const dt = Math.max(1, now - dragLastTime)
+    dragVelocityY = (t.clientY - dragLastY) / dt
+    dragLastY = t.clientY
+    dragLastTime = now
+    applyExpandableVerticalDrag(dy)
+  }
+}
+
+function onTouchHeadEnd() {
+  if (touchHeadMode !== 'detent-drag') {
+    touchHeadMode = 'undecided'
+    return
+  }
+  touchHeadMode = 'undecided'
+  settleExpandableVerticalDrag()
+}
+
 function onHandlePointerDown(e: PointerEvent) {
   if (e.button !== 0 || typeof window === 'undefined') return
+  syncViewportHeight()
   isDragging.value = true
   dragStartX = e.clientX
   dragStartY = e.clientY
@@ -536,6 +727,11 @@ function onHandlePointerDown(e: PointerEvent) {
   dragVelocityY = 0
   dragOffsetX.value = 0
   dragOffsetY.value = 0
+  dragStartDetent = internalDetent.value
+  dragStartHeight = dragStartDetent === 'full' ? fullPx.value : halfPx.value
+  if (props.expandable && props.placement === 'bottom') {
+    dragHeightPx.value = dragStartHeight
+  }
 
   window.addEventListener('pointermove', onHandlePointerMove, { passive: false })
   window.addEventListener('pointerup', onHandlePointerUp)
@@ -548,9 +744,13 @@ function onHandlePointerMove(e: PointerEvent) {
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
   const dt = Math.max(1, now - dragLastTime)
   if (props.placement === 'bottom') {
-    const dy = Math.max(0, e.clientY - dragStartY)
+    const rawDy = e.clientY - dragStartY
     dragVelocityY = (e.clientY - dragLastY) / dt
-    dragOffsetY.value = dy
+    if (props.expandable) {
+      applyExpandableVerticalDrag(rawDy)
+    } else {
+      dragOffsetY.value = Math.max(0, rawDy)
+    }
   } else if (props.placement === 'left') {
     const dx = Math.min(0, e.clientX - dragStartX)
     dragVelocityX = (e.clientX - dragLastX) / dt
@@ -575,6 +775,10 @@ function cleanupDrag() {
 function onHandlePointerUp() {
   if (!isDragging.value) return
   cleanupDrag()
+  if (props.expandable && props.placement === 'bottom') {
+    settleExpandableVerticalDrag()
+    return
+  }
   const sheetHeight = sheetRef.value?.offsetHeight || 420
   const sheetWidth = sheetRef.value?.offsetWidth || 360
   let shouldDismiss = false
@@ -701,13 +905,19 @@ onBeforeUnmount(() => {
           <section
             ref="sheetRef"
             class="vl-sheet shape-rect native-scroll"
-            :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
+            :class="[`place-${placement}`, `t-${accentTone}`, { contained, expandable, dragging: isDragging }]"
             :style="sheetDynamicStyle"
             role="dialog"
             aria-modal="true"
             :aria-label="title"
           >
-            <div class="vl-sheet-head shape-rect native-scroll">
+            <div
+              class="vl-sheet-head shape-rect native-scroll"
+              @touchstart="onTouchHeadStart"
+              @touchmove="onTouchHeadMove"
+              @touchend="onTouchHeadEnd"
+              @touchcancel="onTouchHeadEnd"
+            >
               <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
                 <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
               </div>
@@ -720,6 +930,18 @@ onBeforeUnmount(() => {
 
                 <div class="vl-sheet-title-right">
                   <slot name="header-extra" />
+                  <button
+                    v-if="expandable && placement === 'bottom'"
+                    type="button"
+                    class="vl-sheet-detent-btn shape-pill"
+                    :class="{ active: internalDetent === 'full' }"
+                    :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
+                    @touchstart.stop
+                    @pointerdown.stop
+                    @click="toggleDetent"
+                  >
+                    {{ internalDetent === 'full' ? '半屏' : '全高' }}
+                  </button>
                   <VlIconButton
                     icon="close"
                     size="sm"
@@ -782,7 +1004,7 @@ onBeforeUnmount(() => {
         v-if="open"
         ref="sheetRef"
         class="vl-sheet shape-rect"
-        :class="[`place-${placement}`, `t-${accentTone}`, { contained, dragging: isDragging }]"
+        :class="[`place-${placement}`, `t-${accentTone}`, { contained, expandable, dragging: isDragging }]"
         :style="sheetDynamicStyle"
         role="dialog"
         aria-modal="true"
@@ -804,6 +1026,17 @@ onBeforeUnmount(() => {
 
             <div class="vl-sheet-title-right">
               <slot name="header-extra" />
+              <button
+                v-if="expandable && placement === 'bottom'"
+                type="button"
+                class="vl-sheet-detent-btn shape-pill"
+                :class="{ active: internalDetent === 'full' }"
+                :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
+                @pointerdown.stop
+                @click="toggleDetent"
+              >
+                {{ internalDetent === 'full' ? '半屏' : '全高' }}
+              </button>
               <VlIconButton
                 icon="close"
                 size="sm"
@@ -898,7 +1131,7 @@ onBeforeUnmount(() => {
 }
 
 .vl-sheet-driver-spacer {
-  width: calc(100% + 220px);
+  width: calc(100% + 300px);
   height: 1px;
 }
 
@@ -921,32 +1154,33 @@ onBeforeUnmount(() => {
   will-change: opacity;
 }
 
+/* Native scroll-timeline uses linear timing because driver.scrollTo(smooth) already provides Safari's ease envelope */
 .vl-sheet-backdrop.is-bd-open-a {
   animation-name: vl-sheet-bd-open-a;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-backdrop.is-bd-open-b {
   animation-name: vl-sheet-bd-open-b;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-backdrop.is-bd-close-a {
   animation-name: vl-sheet-bd-close-a;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-backdrop.is-bd-close-b {
   animation-name: vl-sheet-bd-close-b;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-native-scroller {
@@ -972,14 +1206,14 @@ onBeforeUnmount(() => {
   animation-name: vl-sheet-move-a;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-native-scroller.is-anim-b {
   animation-name: vl-sheet-move-b;
   animation-duration: 1s;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+  animation-timing-function: linear;
 }
 
 .vl-sheet-native-scroller.place-bottom {
@@ -1036,7 +1270,22 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background-color: var(--bg-base);
   overflow: hidden;
-  transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.38s cubic-bezier(0.26, 0.68, 0.28, 1);
+}
+
+.vl-sheet.expandable {
+  transition:
+    height 0.36s cubic-bezier(0.26, 0.68, 0.28, 1),
+    transform 0.38s cubic-bezier(0.26, 0.68, 0.28, 1);
+}
+
+.vl-sheet.native-scroll.expandable {
+  transition: height 0.36s cubic-bezier(0.26, 0.68, 0.28, 1);
+}
+
+.vl-sheet.expandable.dragging,
+.vl-sheet.native-scroll.expandable.dragging {
+  transition: none;
 }
 
 .vl-sheet.native-scroll {
@@ -1182,6 +1431,27 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.vl-sheet-detent-btn {
+  height: 26px;
+  padding: 0 11px;
+  font-size: var(--ui-font-xs);
+  font-weight: 800;
+  background-color: var(--bg-chip);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    background-color 0.16s var(--ease-decel),
+    color 0.16s var(--ease-decel);
+}
+
+.vl-sheet-detent-btn.active {
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-ink);
 }
 
 .vl-sheet-close-btn {

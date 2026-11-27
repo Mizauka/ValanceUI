@@ -257,6 +257,23 @@ describe('@valance-ui/vue core components', () => {
     })
     expect(document.body.querySelector('.vl-sheet[aria-label="顶层独立 Sheet"]')).not.toBeNull()
     portaledSheet.unmount()
+
+    // Expandable VlSheet supports half <-> full two-detent switching & handle drag
+    const expandableSheet = mount(VlSheet, {
+      props: { open: true, title: '两挡位抽屉', contained: true, expandable: true, detent: 'half' },
+      slots: { default: '<div>两挡位表单内容</div>' },
+    })
+    const detentBtn = expandableSheet.find('.vl-sheet-detent-btn')
+    expect(detentBtn.text()).toBe('全高')
+    await detentBtn.trigger('click')
+    expect(expandableSheet.emitted('update:detent')?.[0]).toEqual(['full'])
+    expect(expandableSheet.find('.vl-sheet-detent-btn').text()).toBe('半屏')
+    // Dragging handle upward from half snaps to full
+    await expandableSheet.setProps({ detent: 'half' })
+    await expandableSheet.find('.vl-sheet-head').trigger('pointerdown', { clientX: 100, clientY: 400, button: 0 })
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 160 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 160 }))
+    expect(expandableSheet.emitted('update:detent')?.slice(-1)[0]).toEqual(['full'])
   })
 
   it('renders VlActivityBar in mobile mode and emits select', async () => {

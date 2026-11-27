@@ -893,6 +893,33 @@ describe('@valance-ui/vue core components', () => {
     expect(dispatchBack()).toBe(false)
   })
 
+  it('does not call history.back when closing a back handler triggers router navigation', async () => {
+    const origBack = window.history.back
+    let backCalls = 0
+    window.history.back = (() => {
+      backCalls++
+    }) as typeof window.history.back
+
+    try {
+      const unreg = registerBackHandler(() => true, 150)
+      expect(window.history.state?.__vlBackSentinel).toBe(true)
+      // Simulate closing drawer + concurrent router pushState in next microtask
+      unreg()
+      window.history.pushState({}, '', '/next-scene')
+      await new Promise((r) => setTimeout(r, 20))
+      expect(backCalls).toBe(0)
+
+      // Closing without navigating still releases the sentinel cleanly
+      const unreg2 = registerBackHandler(() => true, 150)
+      expect(window.history.state?.__vlBackSentinel).toBe(true)
+      unreg2()
+      await new Promise((r) => setTimeout(r, 20))
+      expect(backCalls).toBe(1)
+    } finally {
+      window.history.back = origBack
+    }
+  })
+
   it('interrupts VlSnapPager mid-flight on rapid taps without dropping animation', async () => {
     const pager = mount(VlSnapPager, {
       props: {

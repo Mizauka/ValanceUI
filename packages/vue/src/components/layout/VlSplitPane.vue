@@ -59,7 +59,7 @@ const emit = defineEmits<{
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
-const containerWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+const containerWidth = ref(1280)
 const SASH_WIDTH = 10
 let resizeObserver: ResizeObserver | null = null
 

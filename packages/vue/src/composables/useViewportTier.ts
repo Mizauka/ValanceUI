@@ -23,9 +23,7 @@ export function useViewportTier(options: ViewportTierOptions = {}) {
   const dualMax = options.dualMaxWidth ?? 1080
   const fallbackWidth = options.fallbackWidth ?? 1280
 
-  const viewportWidth = ref(
-    typeof window !== 'undefined' ? window.innerWidth : fallbackWidth,
-  )
+  const viewportWidth = ref(fallbackWidth)
 
   const tier = computed<ViewportTier>(() =>
     detectViewportTier(viewportWidth.value, phoneMax, dualMax),

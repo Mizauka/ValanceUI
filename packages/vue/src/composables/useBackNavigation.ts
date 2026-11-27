@@ -13,6 +13,14 @@ let nextOrder = 1
 let listenersInstalled = false
 let sentinelPushed = false
 let ignoreNextPopstate = false
+let releaseTimer: number | null = null
+
+function cancelScheduledRelease() {
+  if (releaseTimer !== null && typeof window !== 'undefined') {
+    window.clearTimeout(releaseTimer)
+    releaseTimer = null
+  }
+}
 
 function sortStack() {
   backStack.sort((a, b) => (b.priority !== a.priority ? b.priority - a.priority : b.order - a.order))
@@ -20,6 +28,7 @@ function sortStack() {
 
 function ensureHistorySentinel() {
   if (typeof window === 'undefined' || typeof window.history === 'undefined') return
+  cancelScheduledRelease()
   if (sentinelPushed || backStack.length === 0) return
   try {
     window.history.pushState({ ...(window.history.state ?? {}), __vlBackSentinel: true }, '')
@@ -32,15 +41,23 @@ function ensureHistorySentinel() {
 function releaseHistorySentinel() {
   if (typeof window === 'undefined' || typeof window.history === 'undefined') return
   if (!sentinelPushed || backStack.length > 0) return
-  sentinelPushed = false
-  if (window.history.state?.__vlBackSentinel) {
-    try {
-      ignoreNextPopstate = true
-      window.history.back()
-    } catch {
-      ignoreNextPopstate = false
+  cancelScheduledRelease()
+  // Defer release to the next macrotask so any concurrent router navigation
+  // (e.g. clicking a link inside a closing push drawer or sheet) pushes its new
+  // history entry first, preventing a spurious history.back() from reverting it.
+  releaseTimer = window.setTimeout(() => {
+    releaseTimer = null
+    if (!sentinelPushed || backStack.length > 0) return
+    sentinelPushed = false
+    if (window.history.state?.__vlBackSentinel) {
+      try {
+        ignoreNextPopstate = true
+        window.history.back()
+      } catch {
+        ignoreNextPopstate = false
+      }
     }
-  }
+  }, 0)
 }
 
 /**
@@ -123,8 +140,10 @@ function ensureGlobalListeners() {
 
 /** Clear all registered back handlers (primarily for test teardown or full app reset) */
 export function clearBackHandlers(): void {
+  cancelScheduledRelease()
   backStack.length = 0
   sentinelPushed = false
+  ignoreNextPopstate = false
 }
 
 /**

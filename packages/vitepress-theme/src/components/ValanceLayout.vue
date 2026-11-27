@@ -503,6 +503,7 @@ onBeforeUnmount(() => {
         :model-value="currentPath"
         :pages="mobileDockIds"
         :direction="mobilePagerDirection"
+        transition="fade"
         aria-label="移动端博客分页"
       >
         <template #default="{ pageId }">

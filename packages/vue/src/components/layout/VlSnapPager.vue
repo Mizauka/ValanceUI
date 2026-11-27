@@ -12,6 +12,7 @@ import {
 
 type SlideDirection = 'next' | 'prev'
 type AnimParity = 'a' | 'b'
+type PagerTransition = 'slide' | 'fade'
 
 const DRIVER_SLOTS = [0, 1, 2] as const
 type DriverSlot = (typeof DRIVER_SLOTS)[number]
@@ -19,16 +20,16 @@ type DriverSlot = (typeof DRIVER_SLOTS)[number]
 let pagerInstanceSeq = 0
 
 /**
- * Safari 26+ native-compositor interruptible horizontal pager.
+ * Safari 26+ native-compositor interruptible pager supporting horizontal slide
+ * and subtle-scale crossfade transitions.
  *
  * - Keeps visited / declared pages persistently mounted inside `.is-parked` layers
  *   so tab switches never trigger Frame-0 subtree mounts or heavy repaints.
  * - Uses 3 round-robin hidden scrollers (`scroll-timeline-name` + `timeline-scope`)
  *   on Apple touch WebKit so rapid interruptions switch immediately to an idle
- *   scroller while preserving the live mid-flight visual offset (`--vl-pager-from`),
- *   preventing dropped animations or visual snapping.
- * - On Desktop & Android, alternates `--vl-pager-from` -> `--vl-pager-to` between
- *   ping-pong GPU `@keyframes` synchronously with zero frame gap.
+ *   scroller while preserving live mid-flight visual state.
+ * - On Desktop & Android, alternates ping-pong GPU `@keyframes` synchronously
+ *   with zero frame gap.
  */
 const props = withDefaults(
   defineProps<{
@@ -37,12 +38,15 @@ const props = withDefaults(
     pages?: string[]
     /** Optional explicit direction override ('next' | 'prev') */
     direction?: SlideDirection
+    /** Transition style: horizontal slide ('slide') or subtle-scale crossfade ('fade') */
+    transition?: PagerTransition
     /** Pre-mount declared pages quietly after initial mount to avoid Frame-0 hitching */
     preload?: boolean
     ariaLabel?: string
   }>(),
   {
     pages: () => [],
+    transition: 'slide',
     preload: true,
     ariaLabel: '分页视图',
   },
@@ -69,6 +73,7 @@ const driverEls: (HTMLElement | null)[] = [null, null, null]
 
 const mountedIds = ref<string[]>(props.modelValue ? [props.modelValue] : [])
 const pageSlots = ref<Record<string, number>>(props.modelValue ? { [props.modelValue]: 0 } : {})
+const fadeLeavingId = ref<string | null>(null)
 const isTransitioning = ref(false)
 const animParity = ref<AnimParity>('a')
 const activeDriverSlot = ref<DriverSlot>(0)
@@ -156,6 +161,7 @@ function finishTransition(token: number) {
   awaitingScrollEndToken = 0
   targetTravel = 0
   isTransitioning.value = false
+  fadeLeavingId.value = null
   fromPercent.value = 0
   toPercent.value = 0
   pageSlots.value = props.modelValue ? { [props.modelValue]: 0 } : {}
@@ -172,12 +178,62 @@ function onDriverScrollEnd(slot: DriverSlot) {
 }
 
 function onTrackAnimationEnd(event: AnimationEvent) {
-  if (event.target !== trackRef.value) return
   if (!isTransitioning.value || supportsScrollDriver) return
+  if (props.transition === 'fade') {
+    if (event.animationName.includes(`fade-in-${animParity.value}`)) {
+      finishTransition(transitionToken)
+    }
+    return
+  }
+  if (event.target !== trackRef.value) return
   if (!event.animationName.includes(`kf-${animParity.value}`) && !event.animationName.includes(`track-${animParity.value}`)) {
     return
   }
   finishTransition(transitionToken)
+}
+
+async function launchScrollDriver(token: number, settleMs: number) {
+  const nextSlot = ((activeDriverSlot.value + 1) % DRIVER_SLOTS.length) as DriverSlot
+  activeDriverSlot.value = nextSlot
+  resetIdleDrivers(nextSlot)
+
+  const chosenDriver = driverEls[nextSlot]
+  if (!chosenDriver) {
+    finishTransition(token)
+    return
+  }
+  if (chosenDriver.scrollLeft !== 0) {
+    chosenDriver.scrollLeft = 0
+  }
+
+  await nextTick()
+  if (token !== transitionToken) return
+
+  const activeDriver = driverEls[nextSlot]
+  if (!activeDriver) {
+    finishTransition(token)
+    return
+  }
+
+  targetTravel = Math.max(activeDriver.scrollWidth - activeDriver.clientWidth, 1)
+
+  if (typeof activeDriver.scrollTo === 'function' && typeof requestAnimationFrame === 'function') {
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      const driverNow = driverEls[nextSlot]
+      if (token !== transitionToken || !driverNow) return
+      awaitingScrollEndToken = token
+      driverNow.scrollTo({
+        left: targetTravel,
+        behavior: 'smooth',
+      })
+    })
+    settleTimer = setTimeout(() => {
+      finishTransition(token)
+    }, settleMs)
+  } else {
+    finishTransition(token)
+  }
 }
 
 watch(
@@ -210,6 +266,24 @@ watch(
       return
     }
 
+    if (props.transition === 'fade') {
+      fadeLeavingId.value = prev
+      pageSlots.value = { [prev]: 0, [next]: 0 }
+      animParity.value = animParity.value === 'a' ? 'b' : 'a'
+      isTransitioning.value = true
+
+      if (supportsScrollDriver) {
+        await launchScrollDriver(token, 540)
+        return
+      }
+
+      settleTimer = setTimeout(() => {
+        finishTransition(token)
+      }, 340)
+      return
+    }
+
+    fadeLeavingId.value = null
     const dir = resolveDirection(next, prev)
     const curPct = isTransitioning.value ? getCurrentTrackPercent() : 0
 
@@ -254,47 +328,7 @@ watch(
     isTransitioning.value = true
 
     if (supportsScrollDriver) {
-      const nextSlot = ((activeDriverSlot.value + 1) % DRIVER_SLOTS.length) as DriverSlot
-      activeDriverSlot.value = nextSlot
-      resetIdleDrivers(nextSlot)
-
-      const chosenDriver = driverEls[nextSlot]
-      if (!chosenDriver) {
-        finishTransition(token)
-        return
-      }
-      if (chosenDriver.scrollLeft !== 0) {
-        chosenDriver.scrollLeft = 0
-      }
-
-      await nextTick()
-      if (token !== transitionToken) return
-
-      const activeDriver = driverEls[nextSlot]
-      if (!activeDriver) {
-        finishTransition(token)
-        return
-      }
-
-      targetTravel = Math.max(activeDriver.scrollWidth - activeDriver.clientWidth, 1)
-
-      if (typeof activeDriver.scrollTo === 'function' && typeof requestAnimationFrame === 'function') {
-        rafId = requestAnimationFrame(() => {
-          rafId = null
-          const driverNow = driverEls[nextSlot]
-          if (token !== transitionToken || !driverNow) return
-          awaitingScrollEndToken = token
-          driverNow.scrollTo({
-            left: targetTravel,
-            behavior: 'smooth',
-          })
-        })
-        settleTimer = setTimeout(() => {
-          finishTransition(token)
-        }, 580)
-      } else {
-        finishTransition(token)
-      }
+      await launchScrollDriver(token, 580)
       return
     }
 
@@ -308,6 +342,20 @@ watch(
 )
 
 function getPageClass(id: string) {
+  if (props.transition === 'fade') {
+    if (!isTransitioning.value) {
+      return id === props.modelValue ? 'is-slot-anchor' : 'is-parked'
+    }
+    const modePrefix = supportsScrollDriver ? 'is-fade-scroll' : 'is-fade-kf'
+    if (id === props.modelValue) {
+      return `is-slot-anchor ${modePrefix}-enter-${animParity.value}`
+    }
+    if (id === fadeLeavingId.value) {
+      return `is-slot-overlay is-leaving ${modePrefix}-leave-${animParity.value}`
+    }
+    return 'is-parked'
+  }
+
   const slot = pageSlots.value[id]
   if (slot === undefined) return 'is-parked'
   if (id === props.modelValue) return 'is-slot-anchor'
@@ -315,6 +363,14 @@ function getPageClass(id: string) {
 }
 
 function getPageStyle(id: string): CSSProperties | undefined {
+  if (props.transition === 'fade') {
+    if (!isTransitioning.value || !supportsScrollDriver) return undefined
+    if (id !== props.modelValue && id !== fadeLeavingId.value) return undefined
+    return {
+      animationTimeline: driverTimelines[activeDriverSlot.value]!,
+    } as unknown as CSSProperties
+  }
+
   const slot = pageSlots.value[id]
   if (slot === undefined || slot === 0) return undefined
   return {
@@ -324,6 +380,9 @@ function getPageStyle(id: string): CSSProperties | undefined {
 
 function isPageHidden(id: string) {
   if (id === props.modelValue) return false
+  if (props.transition === 'fade') {
+    return !(isTransitioning.value && id === fadeLeavingId.value)
+  }
   return pageSlots.value[id] === undefined
 }
 
@@ -334,7 +393,7 @@ const rootStyle = computed<CSSProperties>(() =>
 )
 
 const trackStyle = computed<CSSProperties>(() => {
-  if (!isTransitioning.value) return {}
+  if (!isTransitioning.value || props.transition === 'fade') return {}
   const base: Record<string, string> = {
     '--vl-pager-from': `${fromPercent.value.toFixed(3)}%`,
     '--vl-pager-to': `${toPercent.value.toFixed(3)}%`,
@@ -348,7 +407,7 @@ const trackStyle = computed<CSSProperties>(() => {
 })
 
 const trackClass = computed(() => {
-  if (!isTransitioning.value) return undefined
+  if (!isTransitioning.value || props.transition === 'fade') return undefined
   return supportsScrollDriver
     ? `is-driving-scroll-${animParity.value}`
     : `is-driving-kf-${animParity.value}`
@@ -535,6 +594,58 @@ onBeforeUnmount(() => {
   z-index: 0;
 }
 
+.vl-snap-page.is-fade-scroll-enter-a {
+  will-change: opacity, transform;
+  animation-name: vl-pager-fade-in-a;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-snap-page.is-fade-scroll-enter-b {
+  will-change: opacity, transform;
+  animation-name: vl-pager-fade-in-b;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-snap-page.is-fade-scroll-leave-a {
+  will-change: opacity, transform;
+  animation-name: vl-pager-fade-out-a;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-snap-page.is-fade-scroll-leave-b {
+  will-change: opacity, transform;
+  animation-name: vl-pager-fade-out-b;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.12, 0.88, 0.34, 1);
+}
+
+.vl-snap-page.is-fade-kf-enter-a {
+  will-change: opacity, transform;
+  animation: vl-pager-fade-in-a 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vl-snap-page.is-fade-kf-enter-b {
+  will-change: opacity, transform;
+  animation: vl-pager-fade-in-b 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vl-snap-page.is-fade-kf-leave-a {
+  will-change: opacity, transform;
+  animation: vl-pager-fade-out-a 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.vl-snap-page.is-fade-kf-leave-b {
+  will-change: opacity, transform;
+  animation: vl-pager-fade-out-b 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 @keyframes vl-pager-track-a {
   from {
     transform: translate3d(var(--vl-pager-from, 0%), 0, 0);
@@ -553,9 +664,57 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes vl-pager-fade-in-a {
+  from {
+    opacity: 0;
+    transform: scale3d(0.985, 0.985, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes vl-pager-fade-in-b {
+  from {
+    opacity: 0;
+    transform: scale3d(0.985, 0.985, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes vl-pager-fade-out-a {
+  from {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+  to {
+    opacity: 0;
+    transform: scale3d(0.99, 0.99, 1);
+  }
+}
+
+@keyframes vl-pager-fade-out-b {
+  from {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+  to {
+    opacity: 0;
+    transform: scale3d(0.99, 0.99, 1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vl-pager-track.is-driving-kf-a,
-  .vl-pager-track.is-driving-kf-b {
+  .vl-pager-track.is-driving-kf-b,
+  .vl-snap-page.is-fade-kf-enter-a,
+  .vl-snap-page.is-fade-kf-enter-b,
+  .vl-snap-page.is-fade-kf-leave-a,
+  .vl-snap-page.is-fade-kf-leave-b {
     animation-duration: 0.01ms !important;
   }
 }

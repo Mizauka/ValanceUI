@@ -365,6 +365,7 @@ onBeforeUnmount(() => {
         :model-value="activeSectionId"
         :pages="['overview', 'gestures', 'buttons']"
         :direction="mobileSlideDirection"
+        transition="fade"
         aria-label="移动端演示分页"
       >
         <template #default="{ pageId }">

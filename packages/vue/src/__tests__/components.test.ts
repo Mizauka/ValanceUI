@@ -809,4 +809,27 @@ describe('@valance-ui/vue core components', () => {
       window.getComputedStyle = origGetComputedStyle
     }
   })
+
+  it('supports subtle-scale fade transitions with ping-pong interruption on VlSnapPager', async () => {
+    const pager = mount(VlSnapPager, {
+      props: {
+        modelValue: 'curve',
+        pages: ['curve', 'records', 'calibration'],
+        transition: 'fade',
+      },
+      slots: {
+        default: '<div class="page-body">Page</div>',
+      },
+    })
+
+    await pager.setProps({ modelValue: 'records' })
+    const pagesAfterFirst = pager.findAll('.vl-snap-page')
+    expect(pagesAfterFirst.some((p) => p.classes().includes('is-fade-kf-enter-b'))).toBe(true)
+    expect(pagesAfterFirst.some((p) => p.classes().includes('is-fade-kf-leave-b'))).toBe(true)
+
+    await pager.setProps({ modelValue: 'calibration' })
+    const pagesAfterSecond = pager.findAll('.vl-snap-page')
+    expect(pagesAfterSecond.some((p) => p.classes().includes('is-fade-kf-enter-a'))).toBe(true)
+    expect(pagesAfterSecond.some((p) => p.classes().includes('is-fade-kf-leave-a'))).toBe(true)
+  })
 })

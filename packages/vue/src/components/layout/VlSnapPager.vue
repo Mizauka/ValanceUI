@@ -273,13 +273,13 @@ watch(
       isTransitioning.value = true
 
       if (supportsScrollDriver) {
-        await launchScrollDriver(token, 640)
+        await launchScrollDriver(token, 560)
         return
       }
 
       settleTimer = setTimeout(() => {
         finishTransition(token)
-      }, 580)
+      }, 440)
       return
     }
 
@@ -628,22 +628,22 @@ onBeforeUnmount(() => {
 
 .vl-snap-page.is-fade-kf-enter-a {
   will-change: opacity, transform;
-  animation: vl-pager-fade-in-a 0.52s linear both;
+  animation: vl-pager-fade-in-a 0.38s linear both;
 }
 
 .vl-snap-page.is-fade-kf-enter-b {
   will-change: opacity, transform;
-  animation: vl-pager-fade-in-b 0.52s linear both;
+  animation: vl-pager-fade-in-b 0.38s linear both;
 }
 
 .vl-snap-page.is-fade-kf-leave-a {
   will-change: opacity, transform;
-  animation: vl-pager-fade-out-a 0.52s linear both;
+  animation: vl-pager-fade-out-a 0.38s linear both;
 }
 
 .vl-snap-page.is-fade-kf-leave-b {
   will-change: opacity, transform;
-  animation: vl-pager-fade-out-b 0.52s linear both;
+  animation: vl-pager-fade-out-b 0.38s linear both;
 }
 
 @keyframes vl-pager-track-a {
@@ -666,9 +666,9 @@ onBeforeUnmount(() => {
 
 @keyframes vl-pager-fade-in-a {
   0%,
-  34% {
+  30% {
     opacity: 0;
-    transform: scale3d(0.985, 0.985, 1);
+    transform: scale3d(0.994, 0.994, 1);
     animation-timing-function: cubic-bezier(0.28, 0.12, 0.22, 1);
   }
   100% {
@@ -679,9 +679,9 @@ onBeforeUnmount(() => {
 
 @keyframes vl-pager-fade-in-b {
   0%,
-  34% {
+  30% {
     opacity: 0;
-    transform: scale3d(0.985, 0.985, 1);
+    transform: scale3d(0.994, 0.994, 1);
     animation-timing-function: cubic-bezier(0.28, 0.12, 0.22, 1);
   }
   100% {
@@ -696,10 +696,10 @@ onBeforeUnmount(() => {
     transform: scale3d(1, 1, 1);
     animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
-  45%,
+  42%,
   100% {
     opacity: 0;
-    transform: scale3d(0.992, 0.992, 1);
+    transform: scale3d(0.997, 0.997, 1);
   }
 }
 
@@ -709,19 +709,19 @@ onBeforeUnmount(() => {
     transform: scale3d(1, 1, 1);
     animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
-  45%,
+  42%,
   100% {
     opacity: 0;
-    transform: scale3d(0.992, 0.992, 1);
+    transform: scale3d(0.997, 0.997, 1);
   }
 }
 
 /* Scroll-timeline driver already supplies an ease-in-out smooth-scroll envelope, so keyframes stay linear to avoid double-easing */
 @keyframes vl-pager-fade-in-scroll-a {
   0%,
-  34% {
+  30% {
     opacity: 0;
-    transform: scale3d(0.985, 0.985, 1);
+    transform: scale3d(0.994, 0.994, 1);
   }
   100% {
     opacity: 1;
@@ -731,9 +731,9 @@ onBeforeUnmount(() => {
 
 @keyframes vl-pager-fade-in-scroll-b {
   0%,
-  34% {
+  30% {
     opacity: 0;
-    transform: scale3d(0.985, 0.985, 1);
+    transform: scale3d(0.994, 0.994, 1);
   }
   100% {
     opacity: 1;
@@ -746,10 +746,10 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: scale3d(1, 1, 1);
   }
-  46%,
+  42%,
   100% {
     opacity: 0;
-    transform: scale3d(0.992, 0.992, 1);
+    transform: scale3d(0.997, 0.997, 1);
   }
 }
 
@@ -758,10 +758,10 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: scale3d(1, 1, 1);
   }
-  46%,
+  42%,
   100% {
     opacity: 0;
-    transform: scale3d(0.992, 0.992, 1);
+    transform: scale3d(0.997, 0.997, 1);
   }
 }
 

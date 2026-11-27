@@ -203,29 +203,29 @@ textarea:focus-visible {
   backface-visibility: hidden;
 }
 
-/* Preset 2: Subtle Scale Crossfade (calm out-then-in S-curve, zero overlap flash) */
+/* Preset 2: Ultra-subtle Micro-Scale Crossfade (crisp, balanced out-then-in S-curve) */
 .vl-fade-enter-active {
   will-change: opacity, transform;
   transition:
-    opacity 0.34s cubic-bezier(0.28, 0.12, 0.22, 1) 0.14s,
-    transform 0.34s cubic-bezier(0.28, 0.12, 0.22, 1) 0.14s;
+    opacity 0.26s cubic-bezier(0.28, 0.12, 0.22, 1) 0.1s,
+    transform 0.26s cubic-bezier(0.28, 0.12, 0.22, 1) 0.1s;
 }
 
 .vl-fade-leave-active {
   will-change: opacity, transform;
   transition:
-    opacity 0.22s cubic-bezier(0.4, 0, 0.6, 1),
-    transform 0.22s cubic-bezier(0.4, 0, 0.6, 1);
+    opacity 0.15s cubic-bezier(0.4, 0, 0.6, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
 .vl-fade-enter-from {
   opacity: 0;
-  transform: scale3d(0.985, 0.985, 1);
+  transform: scale3d(0.994, 0.994, 1);
 }
 
 .vl-fade-leave-to {
   opacity: 0;
-  transform: scale3d(0.992, 0.992, 1);
+  transform: scale3d(0.997, 0.997, 1);
 }
 
 /* Preset 3a: Vertical Slide + Fade (Desktop Workbench Sidebar Views) */

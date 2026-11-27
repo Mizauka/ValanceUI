@@ -164,53 +164,53 @@ describe('@valance-ui/vue core components', () => {
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: 160, clientY: 120 }))
     expect(dual.emitted('update:rightOpen')?.[0]).toEqual([true])
 
-    // Nested bidirectional VlPushDrawer inside coarse-pointer native-scroll outer VlPushDrawer:
-    // outer shell must never preventDefault inner leftward swipes (neither closing left nor opening right)
-    const prevMatchMedia = window.matchMedia
-    window.matchMedia = ((q: string) => ({
-      matches: q.includes('pointer: coarse'),
-      media: q,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia
-
-    try {
-      const nestedHost = mount({
-        components: { VlPushDrawer },
-        template: `
-          <VlPushDrawer :open="false" :drawer-width="280">
-            <template #drawer><div class="outer-nav">Outer</div></template>
-            <VlPushDrawer :open="true" :right-open="false" contained :drawer-width="236">
-              <template #drawer><div class="inner-left">InnerLeft</div></template>
-              <template #right-drawer><div class="inner-right">InnerRight</div></template>
-              <div class="inner-stage">Stage</div>
-            </VlPushDrawer>
+    // Nested bidirectional VlPushDrawer inside outer VlPushDrawer:
+    // outer shell must ignore touch gestures started inside inner shell cleanly
+    const nestedHost = mount({
+      components: { VlPushDrawer },
+      template: `
+        <VlPushDrawer :open="false" :drawer-width="280">
+          <template #drawer><div class="outer-nav">Outer</div></template>
+          <VlPushDrawer :open="true" :right-open="false" contained :drawer-width="236">
+            <template #drawer><div class="inner-left">InnerLeft</div></template>
+            <template #right-drawer><div class="inner-right">InnerRight</div></template>
+            <div class="inner-stage">Stage</div>
           </VlPushDrawer>
-        `,
-      })
-      const scrollers = nestedHost.findAll('.vl-push-scroller')
-      const outerScroller = scrollers[0]!.element as HTMLElement
-      const innerScroller = scrollers[1]!.element as HTMLElement
-      Object.defineProperty(outerScroller, 'scrollWidth', { configurable: true, value: 670 })
-      Object.defineProperty(outerScroller, 'clientWidth', { configurable: true, value: 390 })
-      Object.defineProperty(outerScroller, 'scrollLeft', { configurable: true, writable: true, value: 280 })
-      Object.defineProperty(innerScroller, 'scrollWidth', { configurable: true, value: 862 })
-      Object.defineProperty(innerScroller, 'clientWidth', { configurable: true, value: 390 })
-      Object.defineProperty(innerScroller, 'scrollLeft', { configurable: true, writable: true, value: 0 })
+        </VlPushDrawer>
+      `,
+    })
+    const innerWrapper = nestedHost.findAllComponents(VlPushDrawer)[1]!
+    const outerWrapper = nestedHost.findAllComponents(VlPushDrawer)[0]!
+    const innerStage = nestedHost.find('.inner-stage')
+    await innerStage.trigger('pointerdown', { clientX: 250, clientY: 200, button: 0, pointerType: 'touch' })
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 110, clientY: 200 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 110, clientY: 200 }))
+    expect(innerWrapper.emitted('update:open')?.[0]).toEqual([false])
+    expect(outerWrapper.emitted('update:open')).toBeUndefined()
 
-      const innerStage = nestedHost.find('.inner-stage')
-      await innerStage.trigger('touchstart', { touches: [{ clientX: 250, clientY: 200 }] })
-      const leftMove = new Event('touchmove', { bubbles: true, cancelable: true })
-      Object.defineProperty(leftMove, 'touches', { value: [{ clientX: 120, clientY: 200 }] })
-      innerStage.element.dispatchEvent(leftMove)
-      expect(leftMove.defaultPrevented).toBe(false)
-    } finally {
-      window.matchMedia = prevMatchMedia
-    }
+    // Bidirectional nested shell also opens and closes its own right drawer without leaking to outer shell
+    await nestedHost.setProps({})
+    const dualNested = mount({
+      components: { VlPushDrawer },
+      template: `
+        <VlPushDrawer :open="false" :drawer-width="280">
+          <template #drawer><div class="outer-nav">Outer</div></template>
+          <VlPushDrawer :open="false" :right-open="false" contained :drawer-width="236">
+            <template #drawer><div class="inner-left">InnerLeft</div></template>
+            <template #right-drawer><div class="inner-right">InnerRight</div></template>
+            <div class="inner-stage">Stage</div>
+          </VlPushDrawer>
+        </VlPushDrawer>
+      `,
+    })
+    const dualInner = dualNested.findAllComponents(VlPushDrawer)[1]!
+    const dualOuter = dualNested.findAllComponents(VlPushDrawer)[0]!
+    const dualStage = dualNested.find('.inner-stage')
+    await dualStage.trigger('pointerdown', { clientX: 250, clientY: 200, button: 0, pointerType: 'touch' })
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 110, clientY: 200 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 110, clientY: 200 }))
+    expect(dualInner.emitted('update:rightOpen')?.[0]).toEqual([true])
+    expect(dualOuter.emitted('update:rightOpen')).toBeUndefined()
   })
 
   it('renders VlDockSheet in floating and flush modes, with standalone stacking higher than unified', async () => {

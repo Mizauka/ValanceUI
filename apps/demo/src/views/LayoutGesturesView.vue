@@ -143,7 +143,7 @@ const splitRightW = ref(190)
   <div class="demo-view">
     <div class="labs-grid">
       <!-- LAB 1: Bidirectional Squeeze / Push Drawer + 1:1 Gesture -->
-      <VlCard title="实验室 1 · 双向挤压式侧边栏（VlPushDrawer）" subtitle="向右滑打开左侧目录，向左滑打开右侧检查器；复用 1:1 拖拽与 120Hz scroll-snap 手势引擎" accent-side="left" accent-tone="primary">
+      <VlCard title="实验室 1 · 双向挤压式侧边栏（VlPushDrawer）" subtitle="向右滑打开左侧目录，向左滑打开右侧检查器；统一手势引擎，1:1 实时跟手挤压" accent-side="left" accent-tone="primary">
         <template #extra>
           <div style="display: flex; gap: 6px">
             <VlButton size="sm" :variant="drawerOpen ? 'primary' : 'outline'" icon="panel-left" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">
@@ -207,8 +207,8 @@ const splitRightW = ref(190)
                     <div class="right-kv shape-rect"><span>合拢方式</span><strong>向右滑动 →</strong></div>
                   </template>
                   <template v-else>
-                    <div class="right-kv shape-rect"><span>触控帧率</span><code>120Hz scroll-snap</code></div>
-                    <div class="right-kv shape-rect"><span>桌面过渡</span><code>cubic-bezier</code></div>
+                    <div class="right-kv shape-rect"><span>触控驱动</span><code>pointer gesture</code></div>
+                    <div class="right-kv shape-rect"><span>缓动曲线</span><code>cubic-bezier</code></div>
                   </template>
                   <VlButton size="sm" variant="secondary" block @click="rightDrawerOpen = false">
                     收起右侧栏
@@ -237,7 +237,7 @@ const splitRightW = ref(190)
                 </p>
               </div>
               <p class="sample-p">
-                触控设备上通过 <code>[左抽屉 | 主舞台 | 右抽屉]</code> 三段原生 <code>scroll-snap</code> 在合成器线程跟手滑动，零掉帧。
+                触控与桌面端统一由 GPU <code>translate3d</code> 与贝塞尔缓动驱动，实时跟手拖拽无闪烁。
               </p>
               <div style="display: flex; gap: 8px; flex-wrap: wrap">
                 <VlButton size="sm" variant="primary" @click="rightDrawerOpen = false; drawerOpen = !drawerOpen">

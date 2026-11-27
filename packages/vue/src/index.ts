@@ -369,7 +369,6 @@ export {
 } from './composables/useBackNavigation'
 
 export { useWidthTransition, type WidthTransitionOptions } from './composables/useWidthTransition'
-export { installProMotionBoost } from './composables/useProMotionBoost'
 
 // ─── Plugin Registration ─────────────────────────────────────────────
 const components = {

@@ -1,22 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, type CSSProperties } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import VlIconButton from '../primitives/VlIconButton.vue'
 import VlScrollArea from '../layout/VlScrollArea.vue'
 import { useBackHandler } from '../../composables/useBackNavigation'
 
-let sheetSeq = 0
-
 const isClient = typeof window !== 'undefined'
-const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-const isAppleWebKit =
-  /Safari/i.test(ua) &&
-  !/Chrome|Chromium|Edg|OPR|Firefox|Android|CriOS|FxiOS|EdgiOS/i.test(ua)
-const hasCssScrollTimeline =
-  typeof CSS !== 'undefined' &&
-  typeof CSS.supports === 'function' &&
-  CSS.supports('animation-timeline: scroll()') &&
-  CSS.supports('timeline-scope: --vl-t')
-const useSafariDriver = isAppleWebKit && hasCssScrollTimeline
 
 const props = withDefaults(
   defineProps<{
@@ -57,11 +45,7 @@ const emit = defineEmits<{
   (e: 'closed'): void
 }>()
 
-const sheetId = ++sheetSeq
-const timelineName = `--vl-sh-tl-${sheetId}`
-
 const sheetRef = ref<HTMLElement | null>(null)
-const safariDriverRef = ref<HTMLElement | null>(null)
 const scrollAreaRef = ref<InstanceType<typeof VlScrollArea> | null>(null)
 const isDragging = ref(false)
 const dismissing = ref(false)
@@ -71,10 +55,6 @@ const internalDetent = ref<'half' | 'full'>(props.detent)
 const dragY = ref<number | null>(null)
 const settledHalfSpacer = ref(props.expandable && props.detent === 'half')
 const hostViewportHeight = ref(typeof window !== 'undefined' ? window.innerHeight || 800 : 800)
-
-// Safari scroll-timeline compositor state
-const safariAnimMode = ref<'a' | 'b' | null>(null)
-const safariAnimVars = ref<Record<string, string>>({})
 
 let dragStartX = 0
 let dragStartY = 0
@@ -94,13 +74,6 @@ let dismissFromOffset: { axis: 'X' | 'Y'; px: number } | null = null
 let activeAnimCleanup: (() => void) | null = null
 let settleRafId: number | null = null
 let spacerTimer: number | null = null
-
-let safariDriverParity: 'a' | 'b' = 'a'
-let safariAnimToken = 0
-let awaitingSafariEndToken = 0
-let safariDriverRaf: number | null = null
-let safariDriverTimer: number | null = null
-let activeSafariOnFinish: (() => void) | null = null
 
 const isExpandableBottom = computed(() => props.expandable && props.placement === 'bottom')
 const halfPx = computed(() => Math.round(hostViewportHeight.value * props.halfRatio))
@@ -129,7 +102,7 @@ function offscreenTransform(): string {
 
 function syncViewportHeight() {
   if (props.contained) {
-    const hostEl = sheetRef.value?.parentElement?.parentElement ?? sheetRef.value?.parentElement
+    const hostEl = sheetRef.value?.parentElement
     if (hostEl && hostEl.clientHeight > 0) {
       hostViewportHeight.value = hostEl.clientHeight
       return
@@ -160,56 +133,21 @@ function commitSpacerAfterSettle(next: 'half' | 'full') {
   }
 }
 
-function setDetent(next: 'half' | 'full', animateSnap = false) {
-  const prev = internalDetent.value
-  const fromY = dragY.value !== null ? dragY.value : detentOffsetY(prev)
-  if (prev !== next) {
+function setDetent(next: 'half' | 'full') {
+  if (internalDetent.value !== next) {
     internalDetent.value = next
     emit('update:detent', next)
   }
-  if (!isExpandableBottom.value) return
-
-  const toY = detentOffsetY(next)
-  if (useSafariDriver && props.open && (animateSnap || Math.abs(fromY - toY) > 1)) {
-    cancelSettleRaf()
-    dragY.value = null
-    dragOffsetY.value = 0
-    void runSafariTimelineAnim(
-      `translate3d(0, ${Math.round(fromY)}px, 0)`,
-      `translate3d(0, ${Math.round(toY)}px, 0)`,
-      1,
-      1,
-      () => {
-        settledHalfSpacer.value = internalDetent.value === 'half'
-      },
-    )
-    return
+  if (isExpandableBottom.value) {
+    commitSpacerAfterSettle(next)
   }
-
-  commitSpacerAfterSettle(next)
 }
 
 function toggleDetent() {
   cancelSettleRaf()
-  const next = internalDetent.value === 'full' ? 'half' : 'full'
-  const fromY = dragY.value !== null ? dragY.value : detentOffsetY(internalDetent.value)
   dragY.value = null
   dragOffsetY.value = 0
-  if (useSafariDriver && props.open) {
-    internalDetent.value = next
-    emit('update:detent', next)
-    void runSafariTimelineAnim(
-      `translate3d(0, ${Math.round(fromY)}px, 0)`,
-      `translate3d(0, ${Math.round(detentOffsetY(next))}px, 0)`,
-      1,
-      1,
-      () => {
-        settledHalfSpacer.value = internalDetent.value === 'half'
-      },
-    )
-    return
-  }
-  setDetent(next)
+  setDetent(internalDetent.value === 'full' ? 'half' : 'full')
 }
 
 watch(
@@ -235,94 +173,6 @@ function cancelSettleRaf() {
 function clearActiveAnim() {
   activeAnimCleanup?.()
   activeAnimCleanup = null
-}
-
-function clearSafariDriverTimers() {
-  if (safariDriverTimer !== null && typeof window !== 'undefined') {
-    window.clearTimeout(safariDriverTimer)
-    safariDriverTimer = null
-  }
-  if (safariDriverRaf !== null && typeof cancelAnimationFrame === 'function') {
-    cancelAnimationFrame(safariDriverRaf)
-    safariDriverRaf = null
-  }
-}
-
-function cancelSafariTimelineAnim() {
-  safariAnimToken++
-  clearSafariDriverTimers()
-  awaitingSafariEndToken = 0
-  safariAnimMode.value = null
-  activeSafariOnFinish = null
-  if (safariDriverRef.value) {
-    safariDriverRef.value.scrollLeft = 0
-  }
-}
-
-function finishSafariTimelineAnim(token: number) {
-  if (token !== safariAnimToken) return
-  clearSafariDriverTimers()
-  awaitingSafariEndToken = 0
-  safariAnimMode.value = null
-  if (safariDriverRef.value) {
-    safariDriverRef.value.scrollLeft = 0
-  }
-  const cb = activeSafariOnFinish
-  activeSafariOnFinish = null
-  cb?.()
-}
-
-function onSafariDriverScrollEnd() {
-  const driver = safariDriverRef.value
-  if (!driver || !safariAnimMode.value) return
-  if (awaitingSafariEndToken !== safariAnimToken) return
-  if (driver.scrollLeft <= 4) return
-  finishSafariTimelineAnim(safariAnimToken)
-}
-
-async function runSafariTimelineAnim(
-  fromTransform: string,
-  toTransform: string,
-  fromBackdropOpacity: number,
-  toBackdropOpacity: number,
-  onFinish: () => void,
-) {
-  const token = ++safariAnimToken
-  clearSafariDriverTimers()
-  awaitingSafariEndToken = 0
-  activeSafariOnFinish = onFinish
-
-  safariDriverParity = safariDriverParity === 'a' ? 'b' : 'a'
-  const driver = safariDriverRef.value
-  if (driver) driver.scrollLeft = 0
-
-  safariAnimVars.value = {
-    '--vl-sh-from': fromTransform,
-    '--vl-sh-to': toTransform,
-    '--vl-bd-from': String(fromBackdropOpacity),
-    '--vl-bd-to': String(toBackdropOpacity),
-  }
-  safariAnimMode.value = safariDriverParity
-
-  await nextTick()
-  if (token !== safariAnimToken) return
-
-  const activeDriver = safariDriverRef.value
-  if (!activeDriver || typeof activeDriver.scrollTo !== 'function' || typeof requestAnimationFrame !== 'function') {
-    finishSafariTimelineAnim(token)
-    return
-  }
-
-  const travel = Math.max(activeDriver.scrollWidth - activeDriver.clientWidth, 1)
-  safariDriverRaf = requestAnimationFrame(() => {
-    safariDriverRaf = null
-    if (token !== safariAnimToken || !safariDriverRef.value) return
-    awaitingSafariEndToken = token
-    safariDriverRef.value.scrollTo({ left: travel, behavior: 'smooth' })
-  })
-  safariDriverTimer = window.setTimeout(() => {
-    finishSafariTimelineAnim(token)
-  }, 660)
 }
 
 function close() {
@@ -358,23 +208,6 @@ watch(
   },
 )
 
-const hostScopeStyle = computed<CSSProperties>(() =>
-  useSafariDriver
-    ? ({
-        'timeline-scope': timelineName,
-        '--vl-sheet-tl': timelineName,
-      } as unknown as CSSProperties)
-    : {},
-)
-
-const safariDriverStyle = computed<CSSProperties>(() =>
-  useSafariDriver
-    ? ({
-        'scroll-timeline-name': timelineName,
-      } as unknown as CSSProperties)
-    : {},
-)
-
 const currentExpandableY = computed(() => {
   if (!isExpandableBottom.value) return 0
   if (dragY.value !== null && (isDragging.value || dismissing.value || settleRafId !== null)) {
@@ -384,16 +217,12 @@ const currentExpandableY = computed(() => {
 })
 
 const sheetDynamicStyle = computed(() => {
-  const base: Record<string, string> = {
-    ...(useSafariDriver && safariAnimMode.value ? safariAnimVars.value : {}),
-  }
+  const base: Record<string, string> = {}
   if (props.placement === 'bottom') {
     if (props.expandable) {
       base.height = `${fullPx.value}px`
       base.maxHeight = `${fullPx.value}px`
-      if (!safariAnimMode.value) {
-        base.transform = `translate3d(0, ${Math.round(currentExpandableY.value)}px, 0)`
-      }
+      base.transform = `translate3d(0, ${Math.round(currentExpandableY.value)}px, 0)`
       if (isDragging.value) base.transition = 'none'
     } else {
       base.maxHeight = props.maxHeight
@@ -423,45 +252,36 @@ const sheetBodyStyle = computed(() => {
 })
 
 const footerDynamicStyle = computed(() => {
-  if (!isExpandableBottom.value || safariAnimMode.value) return undefined
+  if (!isExpandableBottom.value) return undefined
   return {
     transform: `translate3d(0, ${Math.round(-currentExpandableY.value)}px, 0)`,
     ...(isDragging.value ? { transition: 'none' } : {}),
   }
 })
 
-function computeDragBackdropRatio(): number {
+const backdropDragStyle = computed(() => {
+  if (!isDragging.value) return undefined
   if (isExpandableBottom.value) {
     const downPastHalf = Math.max(0, currentExpandableY.value - halfOffsetY.value)
-    return downPastHalf <= 0 ? 1 : Math.max(0.05, 1 - downPastHalf / Math.max(1, halfPx.value))
+    if (downPastHalf <= 0) return undefined
+    const ratio = Math.max(0.05, 1 - downPastHalf / Math.max(1, halfPx.value))
+    return { opacity: ratio, transition: 'none' }
   }
   const dim =
     props.placement === 'bottom'
       ? sheetRef.value?.offsetHeight || 420
       : sheetRef.value?.offsetWidth || 360
   const offset = props.placement === 'bottom' ? dragOffsetY.value : Math.abs(dragOffsetX.value)
-  if (offset <= 0) return 1
-  return Math.max(0.05, 1 - offset / Math.max(1, dim))
-}
-
-const backdropDynamicStyle = computed(() => {
-  const vars = useSafariDriver && safariAnimMode.value ? safariAnimVars.value : {}
-  if (isDragging.value) {
-    const ratio = computeDragBackdropRatio()
-    if (ratio < 1) {
-      return {
-        ...vars,
-        opacity: ratio,
-        transition: 'none',
-      }
-    }
+  if (offset <= 0) return undefined
+  const ratio = Math.max(0.05, 1 - offset / Math.max(1, dim))
+  return {
+    opacity: ratio,
+    transition: 'none',
   }
-  return Object.keys(vars).length ? vars : undefined
 })
 
 function onBeforeEnter(el: Element) {
   clearActiveAnim()
-  cancelSafariTimelineAnim()
   const htmlEl = el as HTMLElement
   htmlEl.style.transition = 'none'
   htmlEl.style.transform = offscreenTransform()
@@ -471,24 +291,6 @@ function onEnter(el: Element, done: () => void) {
   const htmlEl = el as HTMLElement
   syncViewportHeight()
   const targetTf = restingTransform()
-
-  if (useSafariDriver) {
-    let settled = false
-    const finish = () => {
-      if (settled) return
-      settled = true
-      clearActiveAnim()
-      done()
-    }
-    activeAnimCleanup = () => {
-      cancelSafariTimelineAnim()
-    }
-    htmlEl.style.transition = ''
-    htmlEl.style.transform = targetTf
-    void runSafariTimelineAnim(offscreenTransform(), targetTf, 0, 1, finish)
-    return
-  }
-
   const totalDim =
     props.placement === 'bottom'
       ? isExpandableBottom.value
@@ -547,7 +349,6 @@ function onAfterEnter(el: Element) {
 
 function onBeforeLeave(el: Element) {
   clearActiveAnim()
-  cancelSafariTimelineAnim()
   const htmlEl = el as HTMLElement
   htmlEl.style.transition = 'none'
   if (dismissFromOffset) {
@@ -562,33 +363,6 @@ function onBeforeLeave(el: Element) {
 
 function onLeave(el: Element, done: () => void) {
   const htmlEl = el as HTMLElement
-
-  if (useSafariDriver) {
-    const startTf = dismissFromOffset
-      ? dismissFromOffset.axis === 'Y'
-        ? `translate3d(0, ${Math.round(dismissFromOffset.px)}px, 0)`
-        : `translate3d(${Math.round(dismissFromOffset.px)}px, 0, 0)`
-      : restingTransform()
-    const startBackdrop =
-      dismissFromOffset && isExpandableBottom.value
-        ? Math.max(0.05, 1 - Math.max(0, dismissFromOffset.px - halfOffsetY.value) / Math.max(1, halfPx.value))
-        : 1
-    let settled = false
-    const finish = () => {
-      if (settled) return
-      settled = true
-      clearActiveAnim()
-      done()
-    }
-    activeAnimCleanup = () => {
-      cancelSafariTimelineAnim()
-    }
-    htmlEl.style.transition = ''
-    htmlEl.style.transform = offscreenTransform()
-    void runSafariTimelineAnim(startTf, offscreenTransform(), startBackdrop, 0, finish)
-    return
-  }
-
   const totalDim =
     props.placement === 'bottom'
       ? htmlEl.offsetHeight || 420
@@ -624,7 +398,6 @@ function onLeave(el: Element, done: () => void) {
 
 function onAfterLeave() {
   clearActiveAnim()
-  cancelSafariTimelineAnim()
   cancelSettleRaf()
   cancelSpacerTimer()
   dismissing.value = false
@@ -637,7 +410,6 @@ function onAfterLeave() {
 
 function onAnimCancel() {
   clearActiveAnim()
-  cancelSafariTimelineAnim()
 }
 
 function applyExpandableVerticalDrag(dy: number) {
@@ -695,28 +467,6 @@ function settleExpandableVerticalDrag() {
     nextDetent = curY <= halfOff / 2 ? 'full' : 'half'
   }
 
-  if (useSafariDriver) {
-    const prev = internalDetent.value
-    if (prev !== nextDetent) {
-      internalDetent.value = nextDetent
-      emit('update:detent', nextDetent)
-    }
-    const targetY = detentOffsetY(nextDetent)
-    isDragging.value = false
-    dragY.value = null
-    dragOffsetY.value = 0
-    void runSafariTimelineAnim(
-      `translate3d(0, ${Math.round(curY)}px, 0)`,
-      `translate3d(0, ${Math.round(targetY)}px, 0)`,
-      downPastHalf > 0 ? Math.max(0.05, 1 - downPastHalf / Math.max(1, halfH)) : 1,
-      1,
-      () => {
-        settledHalfSpacer.value = internalDetent.value === 'half'
-      },
-    )
-    return
-  }
-
   setDetent(nextDetent)
   // Keep current dragY offset for 1 animation frame after removing .dragging so CSS transform transition catches it cleanly
   releaseWithSmoothTransition()
@@ -724,7 +474,6 @@ function settleExpandableVerticalDrag() {
 
 function onHandlePointerDown(e: PointerEvent) {
   if (e.button !== 0 || typeof window === 'undefined') return
-  cancelSafariTimelineAnim()
   cancelSettleRaf()
   cancelSpacerTimer()
   syncViewportHeight()
@@ -804,20 +553,6 @@ function finalizeNonExpandableDrag() {
     close()
     return
   }
-
-  if (useSafariDriver) {
-    const startTf =
-      props.placement === 'bottom'
-        ? `translate3d(0, ${Math.round(dragOffsetY.value)}px, 0)`
-        : `translate3d(${Math.round(dragOffsetX.value)}px, 0, 0)`
-    const startBd = computeDragBackdropRatio()
-    isDragging.value = false
-    dragOffsetX.value = 0
-    dragOffsetY.value = 0
-    void runSafariTimelineAnim(startTf, 'translate3d(0, 0, 0)', startBd, 1, () => {})
-    return
-  }
-
   releaseWithSmoothTransition()
 }
 
@@ -879,7 +614,6 @@ function onBodyTouchMove(e: TouchEvent) {
     const canPullUp = dy < 0 && atBottom && props.expandable && internalDetent.value === 'half'
 
     if (canPullDown || canPullUp) {
-      cancelSafariTimelineAnim()
       cancelSettleRaf()
       cancelSpacerTimer()
       syncViewportHeight()
@@ -945,7 +679,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearActiveAnim()
-  cancelSafariTimelineAnim()
   cancelSettleRaf()
   cancelSpacerTimer()
   cleanupDrag()
@@ -958,175 +691,116 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body" :disabled="contained || !isClient">
-    <div
-      class="vl-sheet-host shape-rect"
-      :class="{ contained, active: open || safariAnimMode !== null }"
-      :style="hostScopeStyle"
-    >
+    <Transition name="sheet-backdrop">
       <div
-        v-if="useSafariDriver"
-        ref="safariDriverRef"
-        class="vl-sheet-driver"
-        aria-hidden="true"
-        :style="safariDriverStyle"
-        @scrollend="onSafariDriverScrollEnd"
-      >
-        <div class="vl-sheet-driver-spacer" />
-      </div>
+        v-if="open"
+        class="vl-sheet-backdrop shape-rect"
+        :class="{ contained }"
+        :style="backdropDragStyle"
+        @click="closeOnBackdrop && close()"
+      />
+    </Transition>
 
-      <Transition :name="useSafariDriver ? '' : 'sheet-backdrop'">
+    <Transition
+      :css="false"
+      @before-enter="onBeforeEnter"
+      @enter="onEnter"
+      @after-enter="onAfterEnter"
+      @enter-cancelled="onAnimCancel"
+      @before-leave="onBeforeLeave"
+      @leave="onLeave"
+      @after-leave="onAfterLeave"
+      @leave-cancelled="onAnimCancel"
+    >
+      <section
+        v-if="open"
+        ref="sheetRef"
+        class="vl-sheet shape-rect"
+        :class="[`place-${placement}`, `t-${accentTone}`, { contained, expandable, dragging: isDragging }]"
+        :style="sheetDynamicStyle"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+      >
         <div
-          v-if="open"
-          class="vl-sheet-backdrop shape-rect"
-          :class="[
-            { contained },
-            safariAnimMode ? `is-bd-${safariAnimMode}` : '',
-          ]"
-          :style="backdropDynamicStyle"
-          @click="closeOnBackdrop && close()"
-        />
-      </Transition>
-
-      <Transition
-        :css="false"
-        @before-enter="onBeforeEnter"
-        @enter="onEnter"
-        @after-enter="onAfterEnter"
-        @enter-cancelled="onAnimCancel"
-        @before-leave="onBeforeLeave"
-        @leave="onLeave"
-        @after-leave="onAfterLeave"
-        @leave-cancelled="onAnimCancel"
-      >
-        <section
-          v-if="open"
-          ref="sheetRef"
-          class="vl-sheet shape-rect"
-          :class="[
-            `place-${placement}`,
-            `t-${accentTone}`,
-            { contained, expandable, dragging: isDragging },
-            safariAnimMode ? `is-sh-${safariAnimMode}` : '',
-          ]"
-          :style="sheetDynamicStyle"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="title"
+          class="vl-sheet-head shape-rect"
+          @pointerdown="onHandlePointerDown"
         >
-          <div
-            class="vl-sheet-head shape-rect"
-            @pointerdown="onHandlePointerDown"
-          >
-            <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
-              <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
-            </div>
-
-            <div class="vl-sheet-title-row">
-              <div class="vl-sheet-title-left">
-                <span class="vl-sheet-accent shape-rect" />
-                <h2 class="vl-sheet-title">{{ title }}</h2>
-              </div>
-
-              <div class="vl-sheet-title-right">
-                <slot name="header-extra" />
-                <button
-                  v-if="expandable && placement === 'bottom'"
-                  type="button"
-                  class="vl-sheet-detent-btn shape-pill"
-                  :class="{ active: internalDetent === 'full' }"
-                  :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
-                  @pointerdown.stop
-                  @click="toggleDetent"
-                >
-                  {{ internalDetent === 'full' ? '半屏' : '全高' }}
-                </button>
-                <VlIconButton
-                  icon="close"
-                  size="sm"
-                  morph-on-hover
-                  title="关闭"
-                  aria-label="关闭"
-                  class="vl-sheet-close-btn"
-                  @pointerdown.stop
-                  @click="close"
-                />
-              </div>
-            </div>
+          <div v-if="placement === 'bottom'" class="vl-sheet-handle-row">
+            <span class="vl-sheet-handle shape-pill" :class="{ active: isDragging }" />
           </div>
 
-          <div
-            class="vl-sheet-scroll-wrap"
-            @touchstart.passive="onBodyTouchStart"
-            @touchmove="onBodyTouchMove"
-            @touchend="onBodyTouchEnd"
-            @touchcancel="onBodyTouchEnd"
-          >
-            <VlScrollArea ref="scrollAreaRef" class="vl-sheet-scroll">
-              <div class="vl-sheet-body" :style="sheetBodyStyle">
-                <slot />
-              </div>
-            </VlScrollArea>
-          </div>
+          <div class="vl-sheet-title-row">
+            <div class="vl-sheet-title-left">
+              <span class="vl-sheet-accent shape-rect" />
+              <h2 class="vl-sheet-title">{{ title }}</h2>
+            </div>
 
-          <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect" :style="footerDynamicStyle">
-            <slot name="footer" />
-          </footer>
-        </section>
-      </Transition>
-    </div>
+            <div class="vl-sheet-title-right">
+              <slot name="header-extra" />
+              <button
+                v-if="expandable && placement === 'bottom'"
+                type="button"
+                class="vl-sheet-detent-btn shape-pill"
+                :class="{ active: internalDetent === 'full' }"
+                :aria-label="internalDetent === 'full' ? '切换半屏' : '切换全高'"
+                @pointerdown.stop
+                @click="toggleDetent"
+              >
+                {{ internalDetent === 'full' ? '半屏' : '全高' }}
+              </button>
+              <VlIconButton
+                icon="close"
+                size="sm"
+                morph-on-hover
+                title="关闭"
+                aria-label="关闭"
+                class="vl-sheet-close-btn"
+                @pointerdown.stop
+                @click="close"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="vl-sheet-scroll-wrap"
+          @touchstart.passive="onBodyTouchStart"
+          @touchmove="onBodyTouchMove"
+          @touchend="onBodyTouchEnd"
+          @touchcancel="onBodyTouchEnd"
+        >
+          <VlScrollArea ref="scrollAreaRef" class="vl-sheet-scroll">
+            <div class="vl-sheet-body" :style="sheetBodyStyle">
+              <slot />
+            </div>
+          </VlScrollArea>
+        </div>
+
+        <footer v-if="$slots.footer" class="vl-sheet-footer shape-rect" :style="footerDynamicStyle">
+          <slot name="footer" />
+        </footer>
+      </section>
+    </Transition>
   </Teleport>
 </template>
 
 <style scoped>
-.vl-sheet-host {
+.vl-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 235;
-  pointer-events: none;
+  background-color: rgba(24, 21, 18, 0.36);
 }
 
-.vl-sheet-host.contained {
+.vl-sheet-backdrop.contained {
   position: absolute;
   z-index: 60;
 }
 
-.vl-sheet-driver {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  overflow-x: scroll;
-  overflow-y: hidden;
-  opacity: 0.001;
-  pointer-events: none;
-  scrollbar-width: none;
-  scroll-timeline-axis: x;
-}
-
-.vl-sheet-driver::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.vl-sheet-driver-spacer {
-  width: calc(100% + 260px);
-  height: 1px;
-}
-
-.vl-sheet-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: auto;
-  background-color: rgba(24, 21, 18, 0.36);
-}
-
 .vl-sheet {
-  position: absolute;
-  z-index: 2;
-  pointer-events: auto;
+  position: fixed;
+  z-index: 240;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-base);
@@ -1155,61 +829,9 @@ onBeforeUnmount(() => {
   transition: none;
 }
 
-/* Safari 120Hz Compositor Scroll-Timeline Animations (linear because scrollTo(smooth) provides easing) */
-.vl-sheet.is-sh-a {
-  transition: none !important;
-  animation-name: vl-sh-drive-a;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-  animation-timeline: var(--vl-sheet-tl);
-}
-
-.vl-sheet.is-sh-b {
-  transition: none !important;
-  animation-name: vl-sh-drive-b;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-  animation-timeline: var(--vl-sheet-tl);
-}
-
-.vl-sheet-backdrop.is-bd-a {
-  transition: none !important;
-  animation-name: vl-bd-drive-a;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-  animation-timeline: var(--vl-sheet-tl);
-}
-
-.vl-sheet-backdrop.is-bd-b {
-  transition: none !important;
-  animation-name: vl-bd-drive-b;
-  animation-duration: 1s;
-  animation-fill-mode: both;
-  animation-timing-function: linear;
-  animation-timeline: var(--vl-sheet-tl);
-}
-
-@keyframes vl-sh-drive-a {
-  from { transform: var(--vl-sh-from, translate3d(0, 100%, 0)); }
-  to { transform: var(--vl-sh-to, translate3d(0, 0, 0)); }
-}
-
-@keyframes vl-sh-drive-b {
-  from { transform: var(--vl-sh-from, translate3d(0, 100%, 0)); }
-  to { transform: var(--vl-sh-to, translate3d(0, 0, 0)); }
-}
-
-@keyframes vl-bd-drive-a {
-  from { opacity: var(--vl-bd-from, 0); }
-  to { opacity: var(--vl-bd-to, 1); }
-}
-
-@keyframes vl-bd-drive-b {
-  from { opacity: var(--vl-bd-from, 0); }
-  to { opacity: var(--vl-bd-to, 1); }
+.vl-sheet.contained {
+  position: absolute;
+  z-index: 65;
 }
 
 .vl-sheet.place-bottom {

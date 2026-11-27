@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- ==================== MOBILE PUSH-DRAWER + 120HZ SNAP PAGER + DOCK-TO-SHEET ==================== -->
+  <!-- ==================== MOBILE PUSH-DRAWER + SNAP PAGER + DOCK-TO-SHEET ==================== -->
   <VlPushDrawer
     v-if="isPhone"
     :open="mobileDrawerOpen"

@@ -74,7 +74,7 @@ export function usePushDrawerGesture(options: PushDrawerGestureOptions) {
     rightProgress.value = Math.max(0, -clamped)
   }
 
-  // Native 120Hz CSS transition handles open/close settle (zero rAF JS tween loop!)
+  // Native CSS transition handles open/close settle (zero rAF JS tween loop!)
   function settleTo(target: number): void {
     setSigned(target)
   }
